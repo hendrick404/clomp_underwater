@@ -38,12 +38,15 @@ COLMAP_ADD_LIBRARY(
         database.h database.cc
         models.h models.cc
         specs.h specs.cc
+        ray3d.h ray3d.cc
+        models_refrac.h models_refrac.cc
     PUBLIC_LINK_LIBS
         Ceres::ceres
         Eigen3::Eigen
         freeimage::FreeImage
     PRIVATE_LINK_LIBS
         colmap_util
+        colmap_math
         colmap_vlfeat
 )
 
@@ -60,5 +63,10 @@ COLMAP_ADD_TEST(
 COLMAP_ADD_TEST( 
     NAME models_test
     SRCS models_test.cc
+    LINK_LIBS colmap_sensor
+)
+COLMAP_ADD_TEST(
+    NAME ray3d_test
+    SRCS ray3d_test.cc
     LINK_LIBS colmap_sensor
 )

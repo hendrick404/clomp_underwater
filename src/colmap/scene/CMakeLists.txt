@@ -50,7 +50,6 @@ COLMAP_ADD_LIBRARY(
         track.h track.cc
         two_view_geometry.h two_view_geometry.cc
         visibility_pyramid.h visibility_pyramid.cc
-        ray3d.h ray3d.cc
     PUBLIC_LINK_LIBS
         colmap_sensor
         colmap_feature
@@ -137,10 +136,5 @@ COLMAP_ADD_TEST(
 COLMAP_ADD_TEST(
     NAME visibility_pyramid_test
     SRCS visibility_pyramid_test.cc
-    LINK_LIBS colmap_scene
-)
-COLMAP_ADD_TEST(
-    NAME ray3d_test
-    SRCS ray3d_test.cc
     LINK_LIBS colmap_scene
 )

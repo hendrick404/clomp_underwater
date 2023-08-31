@@ -1,4 +1,4 @@
-#include "colmap/scene/ray3d.h"
+#include "colmap/sensor/ray3d.h"
 
 namespace colmap {
 
