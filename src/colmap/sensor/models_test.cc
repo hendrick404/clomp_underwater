@@ -220,4 +220,17 @@ TEST(ThinPrismFisheye, Nominal) {
                                           0.001});
 }
 
+TEST(MetashapeFisheye, Nominal) {
+  TestModel<MetashapeFisheyeCameraModel>({651.123,
+                                          655.123,
+                                          386.123,
+                                          511.123,
+                                          -0.471,
+                                          0.223,
+                                          -0.001,
+                                          0.001,
+                                          0.001,
+                                          0.02});
+}
+
 }  // namespace colmap

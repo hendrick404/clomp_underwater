@@ -123,7 +123,8 @@ static const int kInvalidCameraModelId = -1;
   CAMERA_MODEL_CASE(OpenCVFisheyeCameraModel)       \
   CAMERA_MODEL_CASE(FullOpenCVCameraModel)          \
   CAMERA_MODEL_CASE(FOVCameraModel)                 \
-  CAMERA_MODEL_CASE(ThinPrismFisheyeCameraModel)
+  CAMERA_MODEL_CASE(ThinPrismFisheyeCameraModel)    \
+  CAMERA_MODEL_CASE(MetashapeFisheyeCameraModel)
 #endif
 
 #ifndef CAMERA_MODEL_SWITCH_CASES
@@ -344,6 +345,23 @@ struct RadialFisheyeCameraModel
 struct ThinPrismFisheyeCameraModel
     : public BaseCameraModel<ThinPrismFisheyeCameraModel> {
   CAMERA_MODEL_DEFINITIONS(10, "THIN_PRISM_FISHEYE", 12)
+};
+
+// Metashape fish-eye camera model.
+//
+// Based on the pinhole camera model. Additionally models radial and
+// tangential Distortion (up to 2nd degree of coefficients). Suitable for
+// large radial distortions of fish-eye cameras.
+//
+// Parameter list is expected in the following order:
+//
+//    fx, fy, cx, cy, k1, k2, k3, k4, p1, p2
+//
+// See
+// https://www.agisoft.com/pdf/metashape-pro_1_7_en.pdf
+struct MetashapeFisheyeCameraModel
+    : public BaseCameraModel<MetashapeFisheyeCameraModel> {
+  CAMERA_MODEL_DEFINITIONS(12, "METASHAPE_FISHEYE", 10)
 };
 
 // Check whether camera model with given name or identifier exists.
@@ -1506,6 +1524,101 @@ void ThinPrismFisheyeCameraModel::Distortion(
   const T radial = k1 * r2 + k2 * r4 + k3 * r6 + k4 * r8;
   *du = u * radial + T(2) * p1 * uv + p2 * (r2 + T(2) * u2) + sx1 * r2;
   *dv = v * radial + T(2) * p2 * uv + p1 * (r2 + T(2) * v2) + sy1 * r2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// MetashapeFisheyeCameraModel
+
+std::string MetashapeFisheyeCameraModel::InitializeParamsInfo() {
+  return "fx, fy, cx, cy, k1, k2, k3, k4, p1, p2";
+}
+
+std::vector<size_t> MetashapeFisheyeCameraModel::InitializeFocalLengthIdxs() {
+  return {0, 1};
+}
+
+std::vector<size_t>
+MetashapeFisheyeCameraModel::InitializePrincipalPointIdxs() {
+  return {2, 3};
+}
+
+std::vector<size_t> MetashapeFisheyeCameraModel::InitializeExtraParamsIdxs() {
+  return {4, 5, 6, 7, 8, 9};
+}
+
+std::vector<double> MetashapeFisheyeCameraModel::InitializeParams(
+    const double focal_length, const size_t width, const size_t height) {
+  return {
+      focal_length, focal_length, width / 2.0, height / 2.0, 0, 0, 0, 0, 0, 0};
+}
+
+template <typename T>
+void MetashapeFisheyeCameraModel::ImgFromCam(
+    const T* params, T u, T v, T w, T* x, T* y) {
+  const T f1 = params[0];
+  const T f2 = params[1];
+  const T c1 = params[2];
+  const T c2 = params[3];
+
+  u /= w;
+  v /= w;
+
+  // Distortion
+  T du, dv;
+  Distortion(&params[4], u, v, &du, &dv);
+  *x = u + du;
+  *y = v + dv;
+
+  // Transform to image coordinates
+  *x = f1 * *x + c1;
+  *y = f2 * *y + c2;
+}
+
+template <typename T>
+void MetashapeFisheyeCameraModel::CamFromImg(
+    const T* params, const T x, const T y, T* u, T* v, T* w) {
+  const T f1 = params[0];
+  const T f2 = params[1];
+  const T c1 = params[2];
+  const T c2 = params[3];
+
+  // Lift points to normalized plane
+  *u = (x - c1) / f1;
+  *v = (y - c2) / f2;
+  *w = 1;
+
+  IterativeUndistortion(&params[4], u, v);
+}
+
+template <typename T>
+void MetashapeFisheyeCameraModel::Distortion(
+    const T* extra_params, const T u, const T v, T* du, T* dv) {
+  const T k1 = extra_params[0];
+  const T k2 = extra_params[1];
+  const T k3 = extra_params[2];
+  const T k4 = extra_params[3];
+  const T p1 = extra_params[4];
+  const T p2 = extra_params[5];
+
+  const T r0 = ceres::sqrt(u * u + v * v);
+
+  if (r0 > T(std::numeric_limits<double>::epsilon())) {
+    const T x = u * ceres::atan(r0) / r0;
+    const T y = v * ceres::atan(r0) / r0;
+    const T x2 = x * x;
+    const T y2 = y * y;
+    const T xy = x * y;
+    const T r2 = x2 + y2;
+    const T r4 = r2 * r2;
+    const T r6 = r4 * r2;
+    const T r8 = r4 * r4;
+    const T radial = T(1) + k1 * r2 + k2 * r4 + k3 * r6 + k4 * r8;
+    *du = x * radial + p1 * (r2 + T(2) * x2) + T(2) * p2 * xy - u;
+    *dv = y * radial + p2 * (r2 + T(2) * y2) + T(2) * p1 * xy - v;
+  } else {
+    *du = T(0);
+    *dv = T(0);
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
