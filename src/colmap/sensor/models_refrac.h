@@ -78,7 +78,14 @@ static const int kInvalidRefractiveCameraModelId = -1;
                          T x,                                                  \
                          T y,                                                  \
                          Eigen::Matrix<T, 3, 1>* ori,                          \
-                         Eigen::Matrix<T, 3, 1>* dir);
+                         Eigen::Matrix<T, 3, 1>* dir);                         \
+  template <typename CameraModel, typename T>                                  \
+  static void CamFromImgPoint(const T* cam_params,                             \
+                              const T* refrac_params,                          \
+                              T x,                                             \
+                              T y,                                             \
+                              T d,                                             \
+                              Eigen::Matrix<T, 3, 1>* uvw);
 #endif
 
 #ifndef CAMERA_REFRAC_MODEL_CASES
@@ -221,5 +228,97 @@ size_t CameraRefracModelNumParams(const int refrac_model_id);
 // @param params        Array of camera parameters.
 bool CameraRefracModelVerifyParams(const int refrac_model_id,
                                    const std::vector<double>& params);
+
+// Transform world coordinates in camera coordinate system to image coordinates.
+//
+// This is the inverse of `CameraNonSvpModelImageToWorld`.
+//
+// @param model_id              Unique model_id of camera model as defined in
+//                              `CAMERA_MODEL_NAME_TO_CODE`.
+// @param non_svp_model_id      Unique identifier of non-SVP camera model
+// @param camera_params         Array of camera parameters.
+// @param non_svp_params        Array of non-SVP model parameters.
+// @param world_point           Coordinates in camera system as (x, y, z).
+// @param x, y                  Output image coordinates in pixels.
+inline Eigen::Vector2d CameraRefracModelImgFromCam(
+    const int model_id,
+    const int refrac_model_id,
+    const std::vector<double>& cam_params,
+    const std::vector<double>& refrac_params,
+    const Eigen::Vector3d& uvw);
+
+// Transform image to 3D ray in camera frame using refractive model.
+//
+// This is the inverse of `CameraRefracModelImgFromCam`.
+//
+// @param model_id              Unique identifier of camera model.
+// @param non_svp_model_id      Unique identifier of non-SVP camera model
+// @param camera_params         Array of camera parameters.
+// @param non_svp_params        Array of non-SVP model parameters.
+// @param x, y                  Image coordinates in pixels.
+// @param ray_ori, ray_dir      Output ray in camera system as origin and unit
+// direction.
+inline Ray3D CameraRefracModelCamFromImg(
+    const int model_id,
+    const int refrac_model_id,
+    const std::vector<double>& cam_params,
+    const std::vector<double>& refrac_params,
+    const Eigen::Vector2d& xy);
+
+////////////////////////////////////////////////////////////////////////////////
+// BaseCameraRefracModel
+
+template <typename CameraRefracModel>
+template <typename CameraModel, typename T>
+void BaseCameraRefracModel<CameraRefracModel>::IterativeProjection(
+    const T* cam_params, const T* refrac_params, T u, T v, T w, T* x, T* y) {
+  // Parameters for Newton iteration using numerical differentiation with
+  // central differences, 100 iterations should be enough even for complex
+  // camera models with higher order terms.
+  const Eigen::Matrix<T, 3, 1> uvw(u, v, w);
+  const T d = uvw.norm();
+  const size_t kNumIterations = 100;
+  const T kMaxStepNorm = T(1e-10);
+  const T kRelStepSize = T(1e-7);
+  const T kAbsStepSize = T(1e-6);
+
+  Eigen::Matrix<T, 3, 2> J;
+  const Eigen::Matrix<T, 2, 1> X0(*x, *y);
+  Eigen::Matrix<T, 2, 1> X(*x, *y);
+  Eigen::Matrix<T, 3, 1> err;
+  Eigen::Matrix<T, 3, 1> dx_0b;
+  Eigen::Matrix<T, 3, 1> dx_0f;
+  Eigen::Matrix<T, 3, 1> dx_1b;
+  Eigen::Matrix<T, 3, 1> dx_1f;
+
+  for (size_t i = 0; i < kNumIterations; ++i) {
+    const T step0 = std::max(kAbsStepSize, ceres::abs(kRelStepSize * X(0)));
+    const T step1 = std::max(kAbsStepSize, ceres::abs(kRelStepSize * X(1)));
+    CameraRefracModel::template CamFromImgPoint<CameraModel, T>(
+        cam_params, refrac_params, X(0), X(1), d, &err);
+    err = uvw - err;
+    CameraRefracModel::template CamFromImgPoint<CameraModel, T>(
+        cam_params, refrac_params, X(0) - step0, X(1), d, &dx_0b);
+
+    CameraRefracModel::template CamFromImgPoint<CameraModel, T>(
+        cam_params, refrac_params, X(0) + step0, X(1), d, &dx_0f);
+
+    CameraRefracModel::template CamFromImgPoint<CameraModel, T>(
+        cam_params, refrac_params, X(0), X(1) - step1, d, &dx_1b);
+
+    CameraRefracModel::template CamFromImgPoint<CameraModel, T>(
+        cam_params, refrac_params, X(0), X(1) + step1, d, &dx_1f);
+
+    J.col(0) = (dx_0b - dx_0f) / (T(2.0) * step0);
+    J.col(1) = (dx_1b - dx_1f) / (T(2.0) * step1);
+    Eigen::Matrix<T, 2, 2> H = J.transpose() * J;
+    Eigen::Matrix<T, 2, 1> b = T(-1.0) * J.transpose() * err;
+    const Eigen::Matrix<T, 2, 1> step_x = H.ldlt().solve(b);
+    X += step_x;
+    if (step_x.squaredNorm() < kMaxStepNorm) break;
+  }
+  *x = X(0);
+  *y = X(1);
+}
 
 }  // namespace colmap

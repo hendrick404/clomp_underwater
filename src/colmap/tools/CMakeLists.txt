@@ -32,3 +32,11 @@
 set(FOLDER_NAME "tools")
 
 # COLMAP_ADD_EXECUTABLE(example example.cc)
+COLMAP_ADD_EXECUTABLE(
+    NAME colmap_testbed
+    SRCS 
+        testbed.cc
+    LINK_LIBS
+        Eigen3::Eigen
+)
+set_target_properties(colmap_testbed PROPERTIES OUTPUT_NAME testbed) 
