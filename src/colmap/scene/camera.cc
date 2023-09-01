@@ -271,6 +271,23 @@ Eigen::Vector2d Camera::ImgFromCam(const Eigen::Vector2d& cam_point) const {
   return CameraModelImgFromCam(model_id_, params_, cam_point.homogeneous());
 }
 
+Ray3D Camera::CamFromImgRefrac(const Eigen::Vector2d& image_point) const {
+  return CameraRefracModelCamFromImg(
+      model_id_, refrac_model_id_, params_, refrac_params_, image_point);
+}
+
+Eigen::Vector3d Camera::CamFromImgRefracPoint(
+    const Eigen::Vector2d& image_point, const double depth) const {
+  return CameraRefracModelCamFromImgPoint(
+      model_id_, refrac_model_id_, params_, refrac_params_, image_point, depth);
+}
+
+Eigen::Vector2d Camera::ImgFromCamRefrac(
+    const Eigen::Vector3d& cam_point) const {
+  return CameraRefracModelImgFromCam(
+      model_id_, refrac_model_id_, params_, refrac_params_, cam_point);
+}
+
 void Camera::Rescale(const double scale) {
   CHECK_GT(scale, 0.0);
   const double scale_x =

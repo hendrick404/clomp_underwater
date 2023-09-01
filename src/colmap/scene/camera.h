@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include "colmap/sensor/ray3d.h"
 #include "colmap/util/types.h"
 
 #include <vector>
@@ -166,6 +167,18 @@ class Camera {
 
   // Project point from camera frame to image plane.
   Eigen::Vector2d ImgFromCam(const Eigen::Vector2d& cam_point) const;
+
+  // Project point in image plane to world as 3D ray using refractive camera
+  // model.
+  Ray3D CamFromImgRefrac(const Eigen::Vector2d& image_point) const;
+
+  // Project point in image plane to world given a depth.
+  Eigen::Vector3d CamFromImgRefracPoint(const Eigen::Vector2d& image_point,
+                                        double depth) const;
+
+  // Project point from camera frame to image plane using refractive camera
+  // model.
+  Eigen::Vector2d ImgFromCamRefrac(const Eigen::Vector3d& cam_point) const;
 
   // Rescale camera dimensions and accordingly the focal length and
   // and the principal point.

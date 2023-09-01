@@ -38,6 +38,7 @@
 #include "colmap/scene/database_cache.h"
 #include "colmap/scene/projection.h"
 #include "colmap/sensor/bitmap.h"
+#include "colmap/sensor/models_refrac.h"
 #include "colmap/util/misc.h"
 #include "colmap/util/ply.h"
 
@@ -1503,12 +1504,26 @@ void Reconstruction::ReadCamerasText(const std::string& path) {
 
     // PARAMS
     camera.Params().clear();
-    while (!line_stream.eof()) {
+    const size_t num_params = CameraModelNumParams(camera.ModelId());
+    for (size_t i = 0; i < num_params; i++) {
       std::getline(line_stream, item, ' ');
       camera.Params().push_back(std::stold(item));
     }
 
     CHECK(camera.VerifyParams());
+
+    // Check if there is more parameters to come.
+    bool more_params = !line_stream.eof();
+    std::getline(line_stream, item, ' ');
+    if (more_params) {
+      camera.SetRefracModelIdFromName(item);
+      camera.RefracParams().clear();
+      while (!line_stream.eof()) {
+        std::getline(line_stream, item, ' ');
+        camera.RefracParams().push_back(std::stold(item));
+      }
+      CHECK(camera.VerifyRefracParams());
+    }
 
     cameras_.emplace(camera.CameraId(), camera);
   }
@@ -1709,6 +1724,12 @@ void Reconstruction::ReadCamerasBinary(const std::string& path) {
     camera.SetHeight(ReadBinaryLittleEndian<uint64_t>(&file));
     ReadBinaryLittleEndian<double>(&file, &camera.Params());
     CHECK(camera.VerifyParams());
+    const int refrac_model_id = ReadBinaryLittleEndian<int>(&file);
+    if (refrac_model_id != kInvalidRefractiveCameraModelId) {
+      camera.SetRefracModelId(refrac_model_id);
+      ReadBinaryLittleEndian<double>(&file, &camera.RefracParams());
+      CHECK(camera.VerifyRefracParams());
+    }
     cameras_.emplace(camera.CameraId(), camera);
   }
 }
@@ -1812,7 +1833,9 @@ void Reconstruction::WriteCamerasText(const std::string& path) const {
   file.precision(17);
 
   file << "# Camera list with one line of data per camera:" << std::endl;
-  file << "#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]" << std::endl;
+  file << "#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[] "
+          "OPTIONAL[REFRAC_MODEL REFRAC_PARAMS[]]"
+       << std::endl;
   file << "# Number of cameras: " << cameras_.size() << std::endl;
 
   for (const auto& camera : cameras_) {
@@ -1826,6 +1849,14 @@ void Reconstruction::WriteCamerasText(const std::string& path) const {
 
     for (const double param : camera.second.Params()) {
       line << param << " ";
+    }
+
+    const int refrac_model_id = camera.second.RefracModelId();
+    if (refrac_model_id != kInvalidRefractiveCameraModelId) {
+      line << camera.second.RefracModelName() << " ";
+      for (const double param : camera.second.RefracParams()) {
+        line << param << " ";
+      }
     }
 
     std::string line_string = line.str();
@@ -1947,6 +1978,10 @@ void Reconstruction::WriteCamerasBinary(const std::string& path) const {
     WriteBinaryLittleEndian<uint64_t>(&file, camera.second.Width());
     WriteBinaryLittleEndian<uint64_t>(&file, camera.second.Height());
     for (const double param : camera.second.Params()) {
+      WriteBinaryLittleEndian<double>(&file, param);
+    }
+    WriteBinaryLittleEndian<int>(&file, camera.second.RefracModelId());
+    for (const double param : camera.second.RefracParams()) {
       WriteBinaryLittleEndian<double>(&file, param);
     }
   }
