@@ -32,6 +32,7 @@
 #include "colmap/scene/camera.h"
 
 #include "colmap/sensor/models.h"
+#include "colmap/sensor/models_refrac.h"
 #include "colmap/util/logging.h"
 #include "colmap/util/misc.h"
 
@@ -46,7 +47,8 @@ Camera::Camera()
       model_id_(kInvalidCameraModelId),
       width_(0),
       height_(0),
-      prior_focal_length_(false) {}
+      prior_focal_length_(false),
+      refrac_model_id_(kInvalidRefractiveCameraModelId) {}
 
 std::string Camera::ModelName() const { return CameraModelIdToName(model_id_); }
 
@@ -60,6 +62,22 @@ void Camera::SetModelIdFromName(const std::string& model_name) {
   CHECK(ExistsCameraModelWithName(model_name));
   model_id_ = CameraModelNameToId(model_name);
   params_.resize(CameraModelNumParams(model_id_), 0);
+}
+
+std::string Camera::RefracModelName() const {
+  return CameraRefracModelIdToName(refrac_model_id_);
+}
+
+void Camera::SetRefracModelId(const int refrac_model_id) {
+  CHECK(ExistsCameraRefracModelWithId(refrac_model_id));
+  refrac_model_id_ = refrac_model_id;
+  refrac_params_.resize(CameraRefracModelNumParams(refrac_model_id_), 0);
+}
+
+void Camera::SetRefracModelIdFromName(const std::string& refrac_model_name) {
+  CHECK(ExistsCameraRefracModelWithName(refrac_model_name));
+  refrac_model_id_ = CameraRefracModelNameToId(refrac_model_name);
+  refrac_params_.resize(CameraRefracModelNumParams(refrac_model_id_), 0);
 }
 
 const std::vector<size_t>& Camera::FocalLengthIdxs() const {
@@ -97,6 +115,10 @@ Eigen::Matrix3d Camera::CalibrationMatrix() const {
 
 std::string Camera::ParamsInfo() const {
   return CameraModelParamsInfo(model_id_);
+}
+
+std::string Camera::RefracParamsInfo() const {
+  return CameraRefracModelParamsInfo(refrac_model_id_);
 }
 
 double Camera::MeanFocalLength() const {
@@ -171,6 +193,10 @@ void Camera::SetPrincipalPointY(const double ppy) {
 
 std::string Camera::ParamsToString() const { return VectorToCSV(params_); }
 
+std::string Camera::RefracParamsToString() const {
+  return VectorToCSV(refrac_params_);
+}
+
 bool Camera::SetParamsFromString(const std::string& string) {
   const std::vector<double> new_camera_params = CSVToVector<double>(string);
   if (!CameraModelVerifyParams(model_id_, new_camera_params)) {
@@ -183,6 +209,10 @@ bool Camera::SetParamsFromString(const std::string& string) {
 
 bool Camera::VerifyParams() const {
   return CameraModelVerifyParams(model_id_, params_);
+}
+
+bool Camera::VerifyRefracParams() const {
+  return CameraRefracModelVerifyParams(refrac_model_id_, refrac_params_);
 }
 
 bool Camera::HasBogusParams(const double min_focal_length_ratio,
@@ -204,6 +234,10 @@ bool Camera::IsUndistorted() const {
     }
   }
   return true;
+}
+
+bool Camera::IsCameraRefractive() const {
+  return refrac_model_id_ != kInvalidRefractiveCameraModelId;
 }
 
 void Camera::InitializeWithId(const int model_id,

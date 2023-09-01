@@ -55,6 +55,12 @@ class Camera {
   void SetModelId(int model_id);
   void SetModelIdFromName(const std::string& model_name);
 
+  // Access the refractive camera model.
+  inline int RefracModelId() const;
+  std::string RefracModelName() const;
+  void SetRefracModelId(int refrac_model_id);
+  void SetRefracModelIdFromName(const std::string& refrac_model_name);
+
   // Access dimensions of the camera sensor.
   inline size_t Width() const;
   inline size_t Height() const;
@@ -92,6 +98,7 @@ class Camera {
 
   // Get human-readable information about the parameter vector ordering.
   std::string ParamsInfo() const;
+  std::string RefracParamsInfo() const;
 
   // Access the raw parameter vector.
   inline size_t NumParams() const;
@@ -103,8 +110,19 @@ class Camera {
   inline double* ParamsData();
   inline void SetParams(const std::vector<double>& params);
 
+  // Access the raw refractive parameter vector.
+  inline size_t NumRefracParams() const;
+  inline const std::vector<double>& RefracParams() const;
+  inline std::vector<double>& RefracParams();
+  inline double RefracParams(const size_t idx) const;
+  inline double& RefracParams(const size_t idx);
+  inline const double* RefracParamsData() const;
+  inline double* RefracParamsData();
+  inline void SetRefracParams(const std::vector<double>& refrac_params);
+
   // Concatenate parameters as comma-separated list.
   std::string ParamsToString() const;
+  std::string RefracParamsToString() const;
 
   // Set camera parameters from comma-separated list.
   bool SetParamsFromString(const std::string& string);
@@ -113,8 +131,16 @@ class Camera {
   // the correct dimensions that match the specified camera model.
   bool VerifyParams() const;
 
+  // Check whether refractive parameters are valid, i.e. the parameter vector
+  // has the correct dimensions that match the specified refractive camera
+  // model.
+  bool VerifyRefracParams() const;
+
   // Check whether camera is already undistorted
   bool IsUndistorted() const;
+
+  // Check whether the camera is a refractive camera.
+  bool IsCameraRefractive() const;
 
   // Check whether camera has bogus parameters.
   bool HasBogusParams(double min_focal_length_ratio,
@@ -166,6 +192,15 @@ class Camera {
   // Whether there is a safe prior for the focal length,
   // e.g. manually provided or extracted from EXIF
   bool prior_focal_length_;
+
+  // The identifier of the refractive camera model. If the camera refractive
+  // model is not specified or the camera is not refractive, the identifier is
+  // `kInvalidCameraRefracModelId`
+  int refrac_model_id_;
+
+  // Refractive camera model parameters. If the camera refractive model is not
+  // specified, this vector is empty.
+  std::vector<double> refrac_params_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,6 +212,8 @@ camera_t Camera::CameraId() const { return camera_id_; }
 void Camera::SetCameraId(const camera_t camera_id) { camera_id_ = camera_id; }
 
 int Camera::ModelId() const { return model_id_; }
+
+int Camera::RefracModelId() const { return refrac_model_id_; }
 
 size_t Camera::Width() const { return width_; }
 
@@ -207,5 +244,27 @@ const double* Camera::ParamsData() const { return params_.data(); }
 double* Camera::ParamsData() { return params_.data(); }
 
 void Camera::SetParams(const std::vector<double>& params) { params_ = params; }
+
+size_t Camera::NumRefracParams() const { return refrac_params_.size(); }
+
+const std::vector<double>& Camera::RefracParams() const {
+  return refrac_params_;
+}
+
+std::vector<double>& Camera::RefracParams() { return refrac_params_; }
+
+double Camera::RefracParams(const size_t idx) const {
+  return refrac_params_[idx];
+}
+
+double& Camera::RefracParams(const size_t idx) { return refrac_params_[idx]; }
+
+const double* Camera::RefracParamsData() const { return refrac_params_.data(); }
+
+double* Camera::RefracParamsData() { return refrac_params_.data(); }
+
+void Camera::SetRefracParams(const std::vector<double>& refrac_params) {
+  refrac_params_ = refrac_params;
+}
 
 }  // namespace colmap

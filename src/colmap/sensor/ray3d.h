@@ -12,7 +12,7 @@ struct Ray3D {
   Ray3D();
   Ray3D(const Eigen::Vector3d& ori, const Eigen::Vector3d& dir);
 
-  Eigen::Vector3d At(const double distance);
+  Eigen::Vector3d At(double distance);
 
   // The 3D position of the ray origion
   Eigen::Vector3d ori;

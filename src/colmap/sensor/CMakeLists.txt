@@ -70,3 +70,8 @@ COLMAP_ADD_TEST(
     SRCS ray3d_test.cc
     LINK_LIBS colmap_sensor
 )
+COLMAP_ADD_TEST(
+    NAME models_refrac_test
+    SRCS models_refrac_test.cc
+    LINK_LIBS colmap_sensor
+)

@@ -32,6 +32,7 @@
 #include "colmap/scene/camera.h"
 
 #include "colmap/sensor/models.h"
+#include "colmap/sensor/models_refrac.h"
 
 #include <gtest/gtest.h>
 
@@ -51,6 +52,15 @@ TEST(Camera, Empty) {
   EXPECT_EQ(camera.NumParams(), 0);
   EXPECT_EQ(camera.Params().size(), 0);
   EXPECT_EQ(camera.ParamsData(), camera.Params().data());
+
+  EXPECT_EQ(camera.RefracModelId(), kInvalidRefractiveCameraModelId);
+  EXPECT_EQ(camera.RefracModelName(), "");
+  EXPECT_EQ(camera.IsCameraRefractive(), false);
+  EXPECT_THROW(camera.RefracParamsInfo(), std::domain_error);
+  EXPECT_EQ(camera.RefracParamsToString(), "");
+  EXPECT_EQ(camera.NumRefracParams(), 0);
+  EXPECT_EQ(camera.RefracParams().size(), 0);
+  EXPECT_EQ(camera.RefracParamsData(), camera.RefracParams().data());
 }
 
 TEST(Camera, CameraId) {
@@ -74,6 +84,17 @@ TEST(Camera, ModelId) {
             static_cast<int>(SimpleRadialCameraModel::model_id));
   EXPECT_EQ(camera.ModelName(), "SIMPLE_RADIAL");
   EXPECT_EQ(camera.NumParams(), SimpleRadialCameraModel::num_params);
+}
+
+TEST(Camera, TestRefracModelId) {
+  Camera camera;
+  EXPECT_EQ(camera.RefracModelId(), kInvalidRefractiveCameraModelId);
+  EXPECT_EQ(camera.RefracModelName(), "");
+  camera.SetRefracModelId(DomePort::refrac_model_id);
+  EXPECT_EQ(camera.RefracModelId(),
+            static_cast<int>(DomePort::refrac_model_id));
+  EXPECT_EQ(camera.RefracModelName(), "DOMEPORT");
+  EXPECT_EQ(camera.NumRefracParams(), DomePort::num_params);
 }
 
 TEST(Camera, WidthHeight) {
@@ -154,6 +175,14 @@ TEST(Camera, ParamsInfo) {
   EXPECT_EQ(camera.ParamsInfo(), "f, cx, cy, k");
 }
 
+TEST(Camera, TestRefracParamsInfo) {
+  Camera camera;
+  EXPECT_THROW(camera.RefracParamsInfo(), std::domain_error);
+  camera.SetRefracModelId(DomePort::refrac_model_id);
+  EXPECT_EQ(camera.RefracParamsInfo(),
+            "Cx, Cy, Cz, int_radius, int_thick, na, ng, nw");
+}
+
 TEST(Camera, Params) {
   Camera camera;
   EXPECT_EQ(camera.NumParams(), 0);
@@ -172,6 +201,28 @@ TEST(Camera, Params) {
   EXPECT_EQ(camera.Params(0), 2.0);
   EXPECT_EQ(camera.Params(1), 1.0);
   EXPECT_EQ(camera.Params(2), 1.0);
+}
+
+TEST(Camera, TestRefracParams) {
+  Camera camera;
+  EXPECT_EQ(camera.NumRefracParams(), 0);
+  EXPECT_EQ(camera.NumRefracParams(), camera.RefracParams().size());
+  camera.InitializeWithId(SimplePinholeCameraModel::model_id, 1.0, 1, 1);
+  const std::vector<double> refrac_params{
+      0.001, 0.001, 0.02, 0.05, 0.007, 1.0, 1.52, 1.33};
+  camera.SetRefracModelId(DomePort::refrac_model_id);
+  camera.SetRefracParams(refrac_params);
+  EXPECT_EQ(camera.NumRefracParams(), 8);
+  EXPECT_EQ(camera.RefracParams().size(), camera.NumRefracParams());
+  EXPECT_EQ(camera.RefracParamsData(), camera.RefracParams().data());
+  EXPECT_EQ(camera.RefracParams(0), refrac_params[0]);
+  EXPECT_EQ(camera.RefracParams(1), refrac_params[1]);
+  EXPECT_EQ(camera.RefracParams(2), refrac_params[2]);
+  EXPECT_EQ(camera.RefracParams(3), refrac_params[3]);
+  EXPECT_EQ(camera.RefracParams(4), refrac_params[4]);
+  EXPECT_EQ(camera.RefracParams(5), refrac_params[5]);
+  EXPECT_EQ(camera.RefracParams(6), refrac_params[6]);
+  EXPECT_EQ(camera.RefracParams(7), refrac_params[7]);
 }
 
 TEST(Camera, ParamsToString) {
@@ -199,6 +250,17 @@ TEST(Camera, VerifyParams) {
   EXPECT_FALSE(camera.VerifyParams());
 }
 
+TEST(Camera, TestVerifyRefracParams) {
+  Camera camera;
+  EXPECT_THROW(camera.VerifyRefracParams(), std::domain_error);
+  const std::vector<double> refrac_params{
+      0.001, 0.001, 0.02, 0.05, 0.007, 1.0, 1.52, 1.33};
+  camera.SetRefracModelId(DomePort::refrac_model_id);
+  EXPECT_TRUE(camera.VerifyRefracParams());
+  camera.RefracParams().resize(2);
+  EXPECT_FALSE(camera.VerifyRefracParams());
+}
+
 TEST(Camera, IsUndistorted) {
   Camera camera;
   camera.InitializeWithId(SimplePinholeCameraModel::model_id, 1.0, 1, 1);
@@ -220,6 +282,16 @@ TEST(Camera, IsUndistorted) {
   camera.SetParams(
       {1.0, 1.0, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.001});
   EXPECT_FALSE(camera.IsUndistorted());
+}
+
+TEST(Camera, TestIsCameraRefractive) {
+  Camera camera;
+  camera.InitializeWithId(SimplePinholeCameraModel::model_id, 1.0, 1, 1);
+  EXPECT_FALSE(camera.IsCameraRefractive());
+  const std::vector<double> refrac_params{
+      0.001, 0.001, 0.02, 0.05, 0.007, 1.0, 1.52, 1.33};
+  camera.SetRefracModelId(DomePort::refrac_model_id);
+  EXPECT_TRUE(camera.IsCameraRefractive());
 }
 
 TEST(Camera, HasBogusParams) {

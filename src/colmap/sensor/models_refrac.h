@@ -5,16 +5,18 @@
 
 namespace colmap {
 
-// This file defines several different Non-Single-View-Point (non-SVP) camera
-// models and arbitrary new non-SVP camera models can be added by the following
-// steps:
+// This file defines several different refractive camera
+// models and arbitrary new refractive camera models can be added by the
+// following steps:
 //
 //  1. Add a new struct in this file which implements all the necessary methods.
-//  2. Define an unique non_svp_model_name and non_svp_model_id for the camera
-//  model.
-//  3. Add camera model to `CAMERA_NON_SVP_MODEL_CASES` macro in this file.
-//  4. Add new template specialization of test case for camera model to
-//     `camera_non_svp_models_test.cc`.
+//  2. Define an unique refrac_model_name and refrac_model_id for the refractive
+//  camera model.
+//  3. Add refractive camera model to `CAMERA_REFRAC_MODEL_CASES` macro in this
+//  file.
+//  4. Add new template specialization of test case for refractive camera model
+//  to
+//     `models_refrac_test.cc`.
 //
 // A camera model can have three different types of camera parameters: focal
 // length, principal point, extra parameters (distortion parameters). The
@@ -23,24 +25,19 @@ namespace colmap {
 // is up to the camera model to access the parameters correctly (it is free to
 // do so in an arbitrary manner) - the parameters are not accessed from outside.
 //
-// A camera model must have the following methods:
+// A refractive camera model must have the following methods:
 //
-//  - `WorldToImage`: transform 3D world point in camera coordinates frame to
-//  image
-//    coordinates (the inverse of `ImageToWorld`). Assumes that the world
-//    coordinates are given as (x, y, z).
-//  - `ImageToWorld`: transform image coordinates to 3D ray in camera
-//  coordinates frame
-// (the inverse of `WorldToImage`). Produces the ray as ray origin and ray unit
-// direction
+//  - `ImgFromCam`: transform camera coordinates to image
+//    coordinates (the inverse of `CamFromImg`). Assumes that the camera
+//    coordinates are given as (u, v, w).
+//  - `CamFromImg`: transform image coordinates to 3D ray in camera
+//    coordinates (the inverse of `ImgFromCam`). Produces ray as Ray3D.
+//  - `CamFromImgPoint`: transform image coordinates to camera
+//    coordinates (the inverse of `ImgFromCam`) given a depth `d`. Produces
+//    camera coordinates as (u, v, w).
 //
-//  - `ImageToWorldPoint`: transform image coordinates to 3D world point given
-//  depth value
-// of this pixel position. Produces the 3D world point in the camera coordinate
-// frame (x, y, z).
-//
-// Whenever you specify the camera parameters in a list, they must appear
-// exactly in the order as they are accessed in the defined model struct.
+// Whenever you specify the refractive camera parameters in a list, they must
+// appear exactly in the order as they are accessed in the defined model struct.
 //
 // The camera models follow the convention that the upper left image corner has
 // the coordinate (0, 0), the lower right corner (width, height), i.e. that
@@ -150,7 +147,7 @@ static const int kInvalidRefractiveCameraModelId = -1;
 // The "Curiously Recurring Template Pattern" (CRTP) is
 // used here, so that we can reuse some shared
 // functionality between all camera models - defined in
-// the BaseCameraModel.
+// the BaseCameraRefracModel.
 template <typename CameraRefracModel>
 struct BaseCameraRefracModel {
   template <typename CameraModel, typename T>
@@ -158,8 +155,7 @@ struct BaseCameraRefracModel {
       const T* cam_params, const T* refrac_params, T u, T v, T w, T* x, T* y);
 };
 
-// DoubleLayerPlanarRefractiveInterface (thick flat
-// port camera system).
+// FlatPort refraction model (thick planar glass interface).
 //
 // Parameter list is expected in the following order:
 //
@@ -177,8 +173,7 @@ struct FlatPort : public BaseCameraRefracModel<FlatPort> {
   CAMERA_REFRAC_MODEL_DEFINITIONS(0, "FLATPORT", 8)
 };
 
-// DoubleLayerSphericalRefractiveInterface (thick dome
-// port camera system).
+// DomePort (thick spherical glass interface).
 //
 // Parameter list is expected in the following order:
 //
@@ -189,81 +184,103 @@ struct FlatPort : public BaseCameraRefracModel<FlatPort> {
 // see:
 // https://link.springer.com/chapter/10.1007/978-3-030-33676-9_6
 struct DomePort : public BaseCameraRefracModel<DomePort> {
-  CAMERA_REFRAC_MODEL_DEFINITIONS(1, "FLATPORT", 8)
+  CAMERA_REFRAC_MODEL_DEFINITIONS(1, "DOMEPORT", 8)
 };
 
 // Check whether refractive camera with given name or identifier
 // exists
 bool ExistsCameraRefracModelWithName(const std::string& refrac_model_name);
-bool ExistsCameraRefracModelWithId(const int refrac_model_id);
+bool ExistsCameraRefracModelWithId(int refrac_model_id);
 
-// Covnert camera non-single-view-point model to unique model identifier
+// Convert refractive camera name to unique refractive camera model identifier.
 //
-// @param name      Unique name of non-SVP camera model
+// @param refrac_model_name      Unique name of refractive camera model
 //
-// @return          Unique identifier of non-SVP camera model
+// @return                       Unique identifier of refractive camera model
 int CameraRefracModelNameToId(const std::string& refrac_model_name);
 
-// Convert camera non-single-view-point model unique identifier to name
+// Convert refractive camera model identifier to unique refractive camera model
+// name.
 //
-// @param model_id  Unique identifier of non-SVP camera model
+// @param refrac_model_id        Unique identifier of refractive camera model
 //
-// @param           Unique name of non-SVP camera model
-std::string CameraRefracModelIdToName(const int refrac_model_id);
+// @param                        Unique name of refractive camera model
+std::string CameraRefracModelIdToName(int refrac_model_id);
 
-// Get human-readable information about the non-SVP parameter vector order
+// Get human-readable information about the refractive parameter vector order.
 //
-// @param model_id   Unique identifier of non-SVP camera model
-std::string CameraRefracModelParamsInfo(const int refrac_model_id);
+// @param refrac_model_id        Unique identifier of refractive camera model
+std::string CameraRefracModelParamsInfo(int refrac_model_id);
 
-// Get the total number of parameters of a non-SVP camera model
-//
-// @param       Unique identifier of non-SVP camera model
-size_t CameraRefracModelNumParams(const int refrac_model_id);
+// Get the total number of parameters of a refractive camera model
+size_t CameraRefracModelNumParams(int refrac_model_id);
 
 // Check whether parameters are valid, i.e. the parameter vector has
-// the correct dimensions that match the specified non-SVP camera model.
+// the correct dimensions that match the specified refractive camera model.
 //
-// @param model_id      Unique identifier of non-SVP camera model.
-// @param params        Array of camera parameters.
-bool CameraRefracModelVerifyParams(const int refrac_model_id,
+// @param refrac_model_id      Unique identifier of refractive camera model.
+// @param params               Array of camera parameters.
+bool CameraRefracModelVerifyParams(int refrac_model_id,
                                    const std::vector<double>& params);
 
-// Transform world coordinates in camera coordinate system to image coordinates.
+// Transform camera to image coordinates using refractive camera model.
 //
-// This is the inverse of `CameraNonSvpModelImageToWorld`.
+// This is the inverse of `CameraRefracModelCamFromImg`.
 //
 // @param model_id              Unique model_id of camera model as defined in
 //                              `CAMERA_MODEL_NAME_TO_CODE`.
-// @param non_svp_model_id      Unique identifier of non-SVP camera model
-// @param camera_params         Array of camera parameters.
-// @param non_svp_params        Array of non-SVP model parameters.
-// @param world_point           Coordinates in camera system as (x, y, z).
+// @param refrac_model_id       Unique refrac_model_id of camera model as
+// defined in                           `CAMERA_REFRAC_MODEL_NAME_TO_CODE`.
+// @param cam_params            Array of camera parameters.
+// @param refrac_params         Array of refractive parameters.
+// @param u, v, w               Coordinates in camera system as (u, v, w).
 // @param x, y                  Output image coordinates in pixels.
 inline Eigen::Vector2d CameraRefracModelImgFromCam(
-    const int model_id,
-    const int refrac_model_id,
+    int model_id,
+    int refrac_model_id,
     const std::vector<double>& cam_params,
     const std::vector<double>& refrac_params,
     const Eigen::Vector3d& uvw);
 
-// Transform image to 3D ray in camera frame using refractive model.
+// Transform image coordinates to 3D ray in camera frame using refractive camera
+// model.
 //
 // This is the inverse of `CameraRefracModelImgFromCam`.
 //
-// @param model_id              Unique identifier of camera model.
-// @param non_svp_model_id      Unique identifier of non-SVP camera model
-// @param camera_params         Array of camera parameters.
-// @param non_svp_params        Array of non-SVP model parameters.
-// @param x, y                  Image coordinates in pixels.
-// @param ray_ori, ray_dir      Output ray in camera system as origin and unit
-// direction.
+// @param model_id      Unique identifier of camera model.
+// @param refrac_model_id      Unique identifier of refractive camera model.
+// @param cam_params        Array of camera parameters.
+// @param refrac_params        Array of refractive camera parameters.
+// @param xy            Image coordinates in pixels.
+//
+// @return              Output ray in camera system as Ray3D.
 inline Ray3D CameraRefracModelCamFromImg(
-    const int model_id,
-    const int refrac_model_id,
+    int model_id,
+    int refrac_model_id,
     const std::vector<double>& cam_params,
     const std::vector<double>& refrac_params,
     const Eigen::Vector2d& xy);
+
+// Transform image to camera coordinates given a depth `d` using refractive
+// camera model.
+//
+// This is the inverse of `CameraRefracModelImgFromCam`.
+//
+// @param model_id      Unique identifier of camera model.
+// @param refrac_model_id      Unique identifier of refractive camera model.
+// @param cam_params        Array of camera parameters.
+// @param refrac_params        Array of refractive camera parameters.
+// @param xy            Image coordinates in pixels.
+// @param d            Depth of the point in the camera system.
+//
+// @return              Output Coordinates in camera system as (u, v, w).
+inline Eigen::Vector3d CameraRefracModelCamFromImgPoint(
+    int model_id,
+    int refrac_model_id,
+    const std::vector<double>& cam_params,
+    const std::vector<double>& refrac_params,
+    const Eigen::Vector2d& xy,
+    const double d);
 
 ////////////////////////////////////////////////////////////////////////////////
 // BaseCameraRefracModel
@@ -313,12 +330,285 @@ void BaseCameraRefracModel<CameraRefracModel>::IterativeProjection(
     J.col(1) = (dx_1b - dx_1f) / (T(2.0) * step1);
     Eigen::Matrix<T, 2, 2> H = J.transpose() * J;
     Eigen::Matrix<T, 2, 1> b = T(-1.0) * J.transpose() * err;
-    const Eigen::Matrix<T, 2, 1> step_x = H.ldlt().solve(b);
+    const Eigen::Matrix<T, 2, 1> step_x = H.partialPivLu().solve(b);
     X += step_x;
     if (step_x.squaredNorm() < kMaxStepNorm) break;
   }
   *x = X(0);
   *y = X(1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FlatPort
+
+std::string FlatPort::InitializeRefracModelParamsInfo() {
+  return "Nx, Ny, Nz, int_dist, int_thick, na, ng, nw\n(Note that [Nx, Ny, Nz] "
+         "must be unit vector)";
+}
+
+template <typename CameraModel, typename T>
+void FlatPort::ImgFromCam(
+    const T* cam_params, const T* refrac_params, T u, T v, T w, T* x, T* y) {
+  CameraModel::ImgFromCam(cam_params, u, v, w, x, y);
+  IterativeProjection<CameraModel, T>(cam_params, refrac_params, u, v, w, x, y);
+  return;
+}
+
+template <typename CameraModel, typename T>
+void FlatPort::CamFromImg(const T* cam_params,
+                          const T* refrac_params,
+                          const T x,
+                          const T y,
+                          Eigen::Matrix<T, 3, 1>* ori,
+                          Eigen::Matrix<T, 3, 1>* dir) {
+  CameraModel::CamFromImg(cam_params, x, y, &(*dir)(0), &(*dir)(1), &(*dir)(2));
+  (*dir).normalize();
+  const Eigen::Matrix<T, 3, 1> int_normal(
+      refrac_params[0], refrac_params[1], refrac_params[2]);
+  const T int_dist = refrac_params[3];
+  const T int_thick = refrac_params[4];
+  const T na = refrac_params[5];
+  const T ng = refrac_params[6];
+  const T nw = refrac_params[7];
+
+  T d;
+  bool is_intersect =
+      RayPlaneIntersection(*ori, *dir, int_normal, int_dist, &d);
+
+  // The back-projected ray has no intersection with the planar interface,
+  // continue
+  if (!is_intersect) return;
+  *ori += d * *dir;
+
+  ComputeRefraction(int_normal, na, ng, dir);
+
+  is_intersect =
+      RayPlaneIntersection(*ori, *dir, int_normal, T(int_dist + int_thick), &d);
+  *ori += d * *dir;
+  ComputeRefraction(int_normal, ng, nw, dir);
+  return;
+}
+
+template <typename CameraModel, typename T>
+void FlatPort::CamFromImgPoint(const T* cam_params,
+                               const T* refrac_params,
+                               T x,
+                               T y,
+                               T d,
+                               Eigen::Matrix<T, 3, 1>* uvw) {
+  Eigen::Matrix<T, 3, 1> ori = Eigen::Matrix<T, 3, 1>::Zero();
+  Eigen::Matrix<T, 3, 1> dir = Eigen::Matrix<T, 3, 1>::Zero();
+  CamFromImg<CameraModel, T>(cam_params, refrac_params, x, y, &ori, &dir);
+  T lambd1 =
+      -(ori.dot(dir) +
+        sqrt(-ori[0] * ori[0] * dir[1] * dir[1] -
+             ori[0] * ori[0] * dir[2] * dir[2] +
+             T(2) * ori[0] * dir[0] * ori[1] * dir[1] +
+             T(2) * ori[0] * dir[0] * ori[2] * dir[2] -
+             dir[0] * dir[0] * ori[1] * ori[1] -
+             dir[0] * dir[0] * ori[2] * ori[2] + dir[0] * dir[0] * d * d -
+             ori[1] * ori[1] * dir[2] * dir[2] +
+             T(2) * ori[1] * dir[1] * ori[2] * dir[2] -
+             dir[1] * dir[1] * ori[2] * ori[2] + dir[1] * dir[1] * d * d +
+             dir[2] * dir[2] * d * d)) /
+      (dir.dot(dir));
+
+  T lambd2 =
+      -(ori.dot(dir) -
+        sqrt(-ori[0] * ori[0] * dir[1] * dir[1] -
+             ori[0] * ori[0] * dir[2] * dir[2] +
+             T(2) * ori[0] * dir[0] * ori[1] * dir[1] +
+             T(2) * ori[0] * dir[0] * ori[2] * dir[2] -
+             dir[0] * dir[0] * ori[1] * ori[1] -
+             dir[0] * dir[0] * ori[2] * ori[2] + dir[0] * dir[0] * d * d -
+             ori[1] * ori[1] * dir[2] * dir[2] +
+             T(2) * ori[1] * dir[1] * ori[2] * dir[2] -
+             dir[1] * dir[1] * ori[2] * ori[2] + dir[1] * dir[1] * d * d +
+             dir[2] * dir[2] * d * d)) /
+      (dir.dot(dir));
+
+  T lambd;
+  if (lambd1 >= T(0)) {
+    lambd = lambd1;
+  } else {
+    lambd = lambd2;
+  }
+
+  *uvw = ori + lambd * dir;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// DomePort
+
+std::string DomePort::InitializeRefracModelParamsInfo() {
+  return "Cx, Cy, Cz, int_radius, int_thick, na, ng, nw";
+}
+
+template <typename CameraModel, typename T>
+void DomePort::ImgFromCam(
+    const T* cam_params, const T* refrac_params, T u, T v, T w, T* x, T* y) {
+  CameraModel::ImgFromCam(cam_params, u, v, w, x, y);
+  IterativeProjection<CameraModel, T>(cam_params, refrac_params, u, v, w, x, y);
+  return;
+}
+
+template <typename CameraModel, typename T>
+void DomePort::CamFromImg(const T* cam_params,
+                          const T* refrac_params,
+                          const T x,
+                          const T y,
+                          Eigen::Matrix<T, 3, 1>* ori,
+                          Eigen::Matrix<T, 3, 1>* dir) {
+  CameraModel::CamFromImg(cam_params, x, y, &(*dir)(0), &(*dir)(1), &(*dir)(2));
+  (*dir).normalize();
+  const Eigen::Matrix<T, 3, 1> sphere_center(
+      refrac_params[0], refrac_params[1], refrac_params[2]);
+  const T int_radius = refrac_params[3];
+  const T int_thick = refrac_params[4];
+  const T na = refrac_params[5];
+  const T ng = refrac_params[6];
+  const T nw = refrac_params[7];
+
+  T dmin, dmax;
+  int num_intersects = RaySphereIntersection(
+      *ori, *dir, sphere_center, int_radius, &dmin, &dmax);
+
+  // no intersection with sphereical refraction interface
+  if (num_intersects == 0) return;
+  *ori += dmax * *dir;
+
+  Eigen::Matrix<T, 3, 1> normal = *ori - sphere_center;
+  normal.normalize();
+
+  ComputeRefraction(normal, na, ng, dir);
+
+  num_intersects = RaySphereIntersection(
+      *ori, *dir, sphere_center, T(int_radius + int_thick), &dmin, &dmax);
+  *ori += dmax * *dir;
+  normal = *ori - sphere_center;
+  normal.normalize();
+  ComputeRefraction(normal, ng, nw, dir);
+
+  return;
+}
+
+template <typename CameraModel, typename T>
+void DomePort::CamFromImgPoint(const T* cam_params,
+                               const T* refrac_params,
+                               T x,
+                               T y,
+                               T d,
+                               Eigen::Matrix<T, 3, 1>* uvw) {
+  Eigen::Matrix<T, 3, 1> ori = Eigen::Matrix<T, 3, 1>::Zero();
+  Eigen::Matrix<T, 3, 1> dir = Eigen::Matrix<T, 3, 1>::Zero();
+  CamFromImg<CameraModel, T>(cam_params, refrac_params, x, y, &ori, &dir);
+  T lambd1 =
+      -(ori.dot(dir) +
+        sqrt(-ori[0] * ori[0] * dir[1] * dir[1] -
+             ori[0] * ori[0] * dir[2] * dir[2] +
+             T(2) * ori[0] * dir[0] * ori[1] * dir[1] +
+             T(2) * ori[0] * dir[0] * ori[2] * dir[2] -
+             dir[0] * dir[0] * ori[1] * ori[1] -
+             dir[0] * dir[0] * ori[2] * ori[2] + dir[0] * dir[0] * d * d -
+             ori[1] * ori[1] * dir[2] * dir[2] +
+             T(2) * ori[1] * dir[1] * ori[2] * dir[2] -
+             dir[1] * dir[1] * ori[2] * ori[2] + dir[1] * dir[1] * d * d +
+             dir[2] * dir[2] * d * d)) /
+      (dir.dot(dir));
+
+  T lambd2 =
+      -(ori.dot(dir) -
+        sqrt(-ori[0] * ori[0] * dir[1] * dir[1] -
+             ori[0] * ori[0] * dir[2] * dir[2] +
+             T(2) * ori[0] * dir[0] * ori[1] * dir[1] +
+             T(2) * ori[0] * dir[0] * ori[2] * dir[2] -
+             dir[0] * dir[0] * ori[1] * ori[1] -
+             dir[0] * dir[0] * ori[2] * ori[2] + dir[0] * dir[0] * d * d -
+             ori[1] * ori[1] * dir[2] * dir[2] +
+             T(2) * ori[1] * dir[1] * ori[2] * dir[2] -
+             dir[1] * dir[1] * ori[2] * ori[2] + dir[1] * dir[1] * d * d +
+             dir[2] * dir[2] * d * d)) /
+      (dir.dot(dir));
+
+  T lambd;
+  if (lambd1 >= T(0)) {
+    lambd = lambd1;
+  } else {
+    lambd = lambd2;
+  }
+
+  *uvw = ori + lambd * dir;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Eigen::Vector2d CameraRefracModelImgFromCam(
+    const int model_id,
+    const int refrac_model_id,
+    const std::vector<double>& cam_params,
+    const std::vector<double>& refrac_params,
+    const Eigen::Vector3d& uvw) {
+  Eigen::Vector2d xy;
+#define CAMERA_COMBINATION_MODEL_CASE(CameraRefracModel, CameraModel) \
+  if (model_id == CameraModel::kModelId &&                            \
+      refrac_model_id == CameraRefracModel::kRefracModelId) {         \
+    CameraRefracModel::ImgFromCam<CameraModel>(cam_params.data(),     \
+                                               refrac_params.data(),  \
+                                               uvw.x(),               \
+                                               uvw.y(),               \
+                                               uvw.z(),               \
+                                               &xy.x(),               \
+                                               &xy.y());              \
+  } else
+
+  CAMERA_COMBINATION_MODEL_IF_ELSE_CASES
+
+#undef CAMERA_COMBINATION_MODEL_CASE
+  return xy;
+}
+
+Ray3D CameraRefracModelCamFromImg(const int model_id,
+                                  const int refrac_model_id,
+                                  const std::vector<double>& cam_params,
+                                  const std::vector<double>& refrac_params,
+                                  const Eigen::Vector2d& xy) {
+  Ray3D ray;
+#define CAMERA_COMBINATION_MODEL_CASE(CameraRefracModel, CameraModel) \
+  if (model_id == CameraModel::kModelId &&                            \
+      refrac_model_id == CameraRefracModel::kRefracModelId) {         \
+    CameraRefracModel::CamFromImg<CameraModel>(cam_params.data(),     \
+                                               refrac_params.data(),  \
+                                               xy.x(),                \
+                                               xy.y(),                \
+                                               &ray.ori,              \
+                                               &ray.dir);             \
+  } else
+
+  CAMERA_COMBINATION_MODEL_IF_ELSE_CASES
+
+#undef CAMERA_COMBINATION_MODEL_CASE
+  return ray;
+}
+
+Eigen::Vector3d CameraRefracModelCamFromImgPoint(
+    const int model_id,
+    const int refrac_model_id,
+    const std::vector<double>& cam_params,
+    const std::vector<double>& refrac_params,
+    const Eigen::Vector2d& xy,
+    const double d) {
+  Eigen::Vector3d uvw;
+#define CAMERA_COMBINATION_MODEL_CASE(CameraRefracModel, CameraModel)      \
+  if (model_id == CameraModel::kModelId &&                                 \
+      refrac_model_id == CameraRefracModel::kRefracModelId) {              \
+    CameraRefracModel::CamFromImgPoint<CameraModel>(                       \
+        cam_params.data(), refrac_params.data(), xy.x(), xy.y(), d, &uvw); \
+  } else
+
+  CAMERA_COMBINATION_MODEL_IF_ELSE_CASES
+
+#undef CAMERA_COMBINATION_MODEL_CASE
+  return uvw;
 }
 
 }  // namespace colmap

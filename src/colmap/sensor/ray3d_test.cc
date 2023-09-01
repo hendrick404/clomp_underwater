@@ -5,7 +5,7 @@
 
 #include <gtest/gtest.h>
 
-using namespace colmap;
+namespace colmap {
 
 TEST(Ray3d, RayBasic) {
   Ray3D ray3D;
@@ -115,3 +115,5 @@ TEST(Ray3D, PointToRayDistanceNaive) {
   EXPECT_EQ(d2, 1.5);
   EXPECT_EQ(d3, 4.2);
 }
+
+}  // namespace colmap
