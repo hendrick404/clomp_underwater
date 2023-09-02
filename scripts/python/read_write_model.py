@@ -39,7 +39,9 @@ import argparse
 CameraModel = collections.namedtuple(
     "CameraModel", ["model_id", "model_name", "num_params"])
 Camera = collections.namedtuple(
-    "Camera", ["id", "model", "width", "height", "params"])
+    "Camera", ["id", "model", "refrac_model", "width", "height", "params", "refrac_params"])
+CameraRefracModel = collections.namedtuple(
+    "CameraRefracModel", ["refrac_model_id", "refrac_model_name", "num_refrac_params"])
 BaseImage = collections.namedtuple(
     "Image", ["id", "qvec", "tvec", "camera_id", "name", "xys", "point3D_ids"])
 Point3D = collections.namedtuple(
@@ -62,13 +64,22 @@ CAMERA_MODELS = {
     CameraModel(model_id=7, model_name="FOV", num_params=5),
     CameraModel(model_id=8, model_name="SIMPLE_RADIAL_FISHEYE", num_params=4),
     CameraModel(model_id=9, model_name="RADIAL_FISHEYE", num_params=5),
-    CameraModel(model_id=10, model_name="THIN_PRISM_FISHEYE", num_params=12)
+    CameraModel(model_id=10, model_name="THIN_PRISM_FISHEYE", num_params=12),
+    CameraModel(model_id=11, model_name="METASHAPE_FISHEYE", num_params=10)
 }
 CAMERA_MODEL_IDS = dict([(camera_model.model_id, camera_model)
                          for camera_model in CAMERA_MODELS])
 CAMERA_MODEL_NAMES = dict([(camera_model.model_name, camera_model)
                            for camera_model in CAMERA_MODELS])
 
+CAMERA_REFRAC_MODELS = {
+    CameraRefracModel(refrac_model_id=0, refrac_model_name="FLATPORT", num_refrac_params=8),
+    CameraRefracModel(refrac_model_id=1, refrac_model_name="DOMEPORT", num_refrac_params=8)
+}
+CAMERA_REFRAC_MODEL_IDS = dict([(camera_refrac_model.refrac_model_id, camera_refrac_model)
+                                 for camera_refrac_model in CAMERA_REFRAC_MODELS])
+CAMERA_REFRAC_MODEL_NAMES = dict([(camera_refrac_model.refrac_model_name, camera_refrac_model)
+                                 for camera_refrac_model in CAMERA_REFRAC_MODELS])
 
 def read_next_bytes(fid, num_bytes, format_char_sequence, endian_character="<"):
     """Read and unpack the next bytes from a binary file.
@@ -117,10 +128,19 @@ def read_cameras_text(path):
                 model = elems[1]
                 width = int(elems[2])
                 height = int(elems[3])
-                params = np.array(tuple(map(float, elems[4:])))
-                cameras[camera_id] = Camera(id=camera_id, model=model,
+                num_params = CAMERA_MODEL_NAMES[model].num_params
+                params = np.array(tuple(map(float, elems[4:4+num_params])))
+                # Extend to read REFRAC_MODEL and REFRAC_PARAMS
+                if len(elems) > num_params + 4:
+                    refrac_model = elems[num_params + 4]
+                    refrac_params = np.array(tuple(map(float, elems[5+num_params:])))
+                    cameras[camera_id] = Camera(id=camera_id, model=model, refrac_model=refrac_model,
                                             width=width, height=height,
-                                            params=params)
+                                            params=params, refrac_params=refrac_params)
+                else:
+                    cameras[camera_id] = Camera(id=camera_id, model=model, refrac_model=None,
+                                            width=width, height=height,
+                                            params=params, refrac_params=[])
     return cameras
 
 
@@ -144,11 +164,24 @@ def read_cameras_binary(path_to_model_file):
             num_params = CAMERA_MODEL_IDS[model_id].num_params
             params = read_next_bytes(fid, num_bytes=8*num_params,
                                      format_char_sequence="d"*num_params)
-            cameras[camera_id] = Camera(id=camera_id,
-                                        model=model_name,
-                                        width=width,
-                                        height=height,
-                                        params=np.array(params))
+            # Extend to read REFRAC_MODEL and REFRAC_PARAMS.
+            refrac_model_id = read_next_bytes(fid, num_bytes=4, format_char_sequence="i")[0]
+            if refrac_model_id != -1:
+                refrac_model_name = CAMERA_REFRAC_MODEL_IDS[refrac_model_id].refrac_model_name
+                num_refrac_params = CAMERA_REFRAC_MODEL_IDS[refrac_model_id].num_refrac_params
+                refrac_params = np.array(read_next_bytes(fid, num_bytes=8*num_refrac_params, format_char_sequence="d"*num_refrac_params))
+                cameras[camera_id] = Camera(id=camera_id,
+                                        model=model_name, refrac_model=refrac_model_name, 
+                                        width=width, height=height,
+                                        params=np.array(params), refrac_params=refrac_params)
+            else:
+                cameras[camera_id] = Camera(id=camera_id,
+                                            model=model_name,
+                                            refrac_model=None,
+                                            width=width,
+                                            height=height,
+                                            params=np.array(params),
+                                            refrac_params=[])
         assert len(cameras) == num_cameras
     return cameras
 
@@ -160,15 +193,17 @@ def write_cameras_text(cameras, path):
         void Reconstruction::ReadCamerasText(const std::string& path)
     """
     HEADER = "# Camera list with one line of data per camera:\n" + \
-             "#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n" + \
+             "#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[] OPTIONAL[REFRAC_MODEL REFRAC_PARAMS[]]\n" + \
              "# Number of cameras: {}\n".format(len(cameras))
     with open(path, "w") as fid:
         fid.write(HEADER)
         for _, cam in cameras.items():
-            to_write = [cam.id, cam.model, cam.width, cam.height, *cam.params]
+            if cam.refrac_model is None:
+                to_write = [cam.id, cam.model, cam.width, cam.height, *cam.params]
+            else:
+                to_write = [cam.id, cam.model, cam.width, cam.height, *cam.params, cam.refrac_model, *cam.refrac_params]
             line = " ".join([str(elem) for elem in to_write])
             fid.write(line + "\n")
-
 
 def write_cameras_binary(cameras, path_to_model_file):
     """
@@ -187,6 +222,12 @@ def write_cameras_binary(cameras, path_to_model_file):
             write_next_bytes(fid, camera_properties, "iiQQ")
             for p in cam.params:
                 write_next_bytes(fid, float(p), "d")
+            if cam.refrac_model is None:
+                write_next_bytes(fid, int(-1), "i")
+            else:
+                write_next_bytes(fid, CAMERA_REFRAC_MODEL_NAMES[cam.refrac_model].refrac_model_id, "i")
+                for p in cam.refrac_params:
+                    write_next_bytes(fid, float(p), "d")
     return cameras
 
 

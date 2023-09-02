@@ -225,6 +225,19 @@ Camera ReadCameraRow(sqlite3_stmt* sql_stmt) {
 
   camera.SetPriorFocalLength(sqlite3_column_int64(sql_stmt, 5) != 0);
 
+  const int refrac_model_id = sqlite3_column_int64(sql_stmt, 6);
+  const int kInvalidRefractiveCameraModelId = -1;
+  if (refrac_model_id != kInvalidRefractiveCameraModelId) {
+    camera.SetRefracModelId(refrac_model_id);
+    const size_t num_refrac_params_bytes =
+        static_cast<size_t>(sqlite3_column_bytes(sql_stmt, 7));
+    const size_t num_refrac_params = num_refrac_params_bytes / sizeof(double);
+    CHECK_EQ(num_refrac_params, camera.NumRefracParams());
+    memcpy(camera.RefracParamsData(),
+           sqlite3_column_blob(sql_stmt, 7),
+           num_refrac_params_bytes);
+  }
+
   return camera;
 }
 
@@ -657,6 +670,16 @@ camera_t Database::WriteCamera(const Camera& camera,
   SQLITE3_CALL(sqlite3_bind_int64(
       sql_stmt_add_camera_, 6, camera.HasPriorFocalLength()));
 
+  SQLITE3_CALL(
+      sqlite3_bind_int64(sql_stmt_add_camera_, 7, camera.RefracModelId()));
+  const size_t num_refrac_params_bytes =
+      sizeof(double) * camera.NumRefracParams();
+  SQLITE3_CALL(sqlite3_bind_blob(sql_stmt_add_camera_,
+                                 8,
+                                 camera.RefracParamsData(),
+                                 static_cast<int>(num_refrac_params_bytes),
+                                 SQLITE_STATIC));
+
   SQLITE3_CALL(sqlite3_step(sql_stmt_add_camera_));
   SQLITE3_CALL(sqlite3_reset(sql_stmt_add_camera_));
 
@@ -822,9 +845,17 @@ void Database::UpdateCamera(const Camera& camera) const {
 
   SQLITE3_CALL(sqlite3_bind_int64(
       sql_stmt_update_camera_, 5, camera.HasPriorFocalLength()));
-
   SQLITE3_CALL(
-      sqlite3_bind_int64(sql_stmt_update_camera_, 6, camera.CameraId()));
+      sqlite3_bind_int64(sql_stmt_update_camera_, 6, camera.RefracModelId()));
+  const size_t num_refrac_params_bytes =
+      sizeof(double) * camera.NumRefracParams();
+  SQLITE3_CALL(sqlite3_bind_blob(sql_stmt_update_camera_,
+                                 7,
+                                 camera.RefracParamsData(),
+                                 static_cast<int>(num_refrac_params_bytes),
+                                 SQLITE_STATIC));
+  SQLITE3_CALL(
+      sqlite3_bind_int64(sql_stmt_update_camera_, 8, camera.CameraId()));
 
   SQLITE3_CALL(sqlite3_step(sql_stmt_update_camera_));
   SQLITE3_CALL(sqlite3_reset(sql_stmt_update_camera_));
@@ -1101,7 +1132,8 @@ void Database::PrepareSQLStatements() {
   //////////////////////////////////////////////////////////////////////////////
   sql =
       "INSERT INTO cameras(camera_id, model, width, height, params, "
-      "prior_focal_length) VALUES(?, ?, ?, ?, ?, ?);";
+      "prior_focal_length, refrac_model, refrac_params) VALUES(?, ?, ?, ?, "
+      "?, ?, ?, ?);";
   SQLITE3_CALL(
       sqlite3_prepare_v2(database_, sql.c_str(), -1, &sql_stmt_add_camera_, 0));
   sql_stmts_.push_back(sql_stmt_add_camera_);
@@ -1119,7 +1151,8 @@ void Database::PrepareSQLStatements() {
   //////////////////////////////////////////////////////////////////////////////
   sql =
       "UPDATE cameras SET model=?, width=?, height=?, params=?, "
-      "prior_focal_length=? WHERE camera_id=?;";
+      "prior_focal_length=?, refrac_model=?, refrac_params=? WHERE "
+      "camera_id=?;";
   SQLITE3_CALL(sqlite3_prepare_v2(
       database_, sql.c_str(), -1, &sql_stmt_update_camera_, 0));
   sql_stmts_.push_back(sql_stmt_update_camera_);
@@ -1296,7 +1329,9 @@ void Database::CreateCameraTable() const {
       "    width                INTEGER                             NOT NULL,"
       "    height               INTEGER                             NOT NULL,"
       "    params               BLOB,"
-      "    prior_focal_length   INTEGER                             NOT NULL);";
+      "    prior_focal_length   INTEGER                             NOT NULL,"
+      "    refrac_model         INTEGER                             NOT NULL,"
+      "    refrac_params        BLOB);";
 
   SQLITE3_EXEC(database_, sql.c_str(), nullptr);
 }

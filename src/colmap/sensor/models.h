@@ -361,7 +361,7 @@ struct ThinPrismFisheyeCameraModel
 // https://www.agisoft.com/pdf/metashape-pro_1_7_en.pdf
 struct MetashapeFisheyeCameraModel
     : public BaseCameraModel<MetashapeFisheyeCameraModel> {
-  CAMERA_MODEL_DEFINITIONS(12, "METASHAPE_FISHEYE", 10)
+  CAMERA_MODEL_DEFINITIONS(11, "METASHAPE_FISHEYE", 10)
 };
 
 // Check whether camera model with given name or identifier exists.
