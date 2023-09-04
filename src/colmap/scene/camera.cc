@@ -207,6 +207,15 @@ bool Camera::SetParamsFromString(const std::string& string) {
   return true;
 }
 
+bool Camera::SetRefracParamsFromString(const std::string& string) {
+  const std::vector<double> new_refrac_params = CSVToVector<double>(string);
+  if (!CameraRefracModelVerifyParams(refrac_model_id_, new_refrac_params)) {
+    return false;
+  }
+  refrac_params_ = new_refrac_params;
+  return true;
+}
+
 bool Camera::VerifyParams() const {
   return CameraModelVerifyParams(model_id_, params_);
 }

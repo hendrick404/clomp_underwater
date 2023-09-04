@@ -32,6 +32,7 @@
 #include "colmap/ui/database_management_widget.h"
 
 #include "colmap/sensor/models.h"
+#include "colmap/sensor/models_refrac.h"
 
 namespace colmap {
 
@@ -280,7 +281,7 @@ CameraTab::CameraTab(QWidget* parent, Database* database)
   grid->addWidget(set_model_button, 0, 2, Qt::AlignRight);
 
   table_widget_ = new QTableWidget(this);
-  table_widget_->setColumnCount(6);
+  table_widget_->setColumnCount(8);
 
   QStringList table_header;
   table_header << "camera_id"
@@ -288,7 +289,9 @@ CameraTab::CameraTab(QWidget* parent, Database* database)
                << "width"
                << "height"
                << "params"
-               << "prior_focal_length";
+               << "prior_focal_length"
+               << "refrac_model"
+               << "refrac_params";
   table_widget_->setHorizontalHeaderLabels(table_header);
 
   table_widget_->setShowGrid(true);
@@ -349,6 +352,22 @@ void CameraTab::Reload() {
         i,
         5,
         new QTableWidgetItem(QString::number(camera.HasPriorFocalLength())));
+    const int refrac_model_id = camera.RefracModelId();
+    std::string refrac_model_name = "";
+    if (refrac_model_id != kInvalidRefractiveCameraModelId) {
+      refrac_model_name = camera.RefracModelName();
+    } else {
+      refrac_model_name = "NONE";
+    }
+    QTableWidgetItem* refrac_model_item =
+        new QTableWidgetItem(QString::fromStdString(refrac_model_name));
+    refrac_model_item->setFlags(Qt::ItemIsSelectable);
+    table_widget_->setItem(i, 6, refrac_model_item);
+
+    table_widget_->setItem(i,
+                           7,
+                           new QTableWidgetItem(QString::fromStdString(
+                               VectorToCSV(camera.RefracParams()))));
   }
   table_widget_->resizeColumnsToContents();
 

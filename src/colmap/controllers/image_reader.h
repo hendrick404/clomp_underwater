@@ -62,6 +62,9 @@ struct ImageReaderOptions {
   // Name of the camera model.
   std::string camera_model = "SIMPLE_RADIAL";
 
+  // Name of the refractive camera model.
+  std::string camera_refrac_model = "NONE";
+
   // Whether to use the same camera for all images.
   bool single_camera = false;
 
@@ -78,6 +81,11 @@ struct ImageReaderOptions {
   // Manual specification of camera parameters. If empty, camera parameters
   // will be extracted from EXIF, i.e. principal point and focal length.
   std::string camera_params = "";
+
+  // Manual specification of refractive camera parameters.
+  // If empty then the camera is a non-refractive camera.
+  // will be extracted from EXIF, i.e. principal point and focal length.
+  std::string camera_refrac_params = "";
 
   // If camera parameters are not specified manually and the image does not
   // have focal length EXIF information, the focal length is set to the

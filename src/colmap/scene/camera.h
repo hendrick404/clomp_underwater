@@ -128,6 +128,9 @@ class Camera {
   // Set camera parameters from comma-separated list.
   bool SetParamsFromString(const std::string& string);
 
+  // Set refractive parameters from comma-separated list.
+  bool SetRefracParamsFromString(const std::string& string);
+
   // Check whether parameters are valid, i.e. the parameter vector has
   // the correct dimensions that match the specified camera model.
   bool VerifyParams() const;

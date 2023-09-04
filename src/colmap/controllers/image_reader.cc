@@ -32,6 +32,7 @@
 #include "colmap/controllers/image_reader.h"
 
 #include "colmap/sensor/models.h"
+#include "colmap/sensor/models_refrac.h"
 #include "colmap/util/misc.h"
 
 namespace colmap {
@@ -43,6 +44,14 @@ bool ImageReaderOptions::Check() const {
   if (!camera_params.empty()) {
     CHECK_OPTION(
         CameraModelVerifyParams(model_id, CSVToVector<double>(camera_params)));
+  }
+  if (camera_refrac_model != "NONE") {
+    CHECK_OPTION(ExistsCameraRefracModelWithName(camera_refrac_model));
+    CHECK_OPTION(!camera_refrac_params.empty());
+    const int refrac_model_id = CameraRefracModelNameToId(camera_refrac_model);
+
+    CHECK_OPTION(CameraRefracModelVerifyParams(
+        refrac_model_id, CSVToVector<double>(camera_refrac_params)));
   }
   return true;
 }
@@ -81,6 +90,13 @@ ImageReader::ImageReader(const ImageReaderOptions& options, Database* database)
     if (!options_.camera_params.empty()) {
       CHECK(prev_camera_.SetParamsFromString(options_.camera_params));
       prev_camera_.SetPriorFocalLength(true);
+    }
+    if (options_.camera_refrac_model != "NONE") {
+      prev_camera_.SetRefracModelIdFromName(options_.camera_refrac_model);
+      if (!options_.camera_refrac_params.empty()) {
+        CHECK(prev_camera_.SetRefracParamsFromString(
+            options_.camera_refrac_params));
+      }
     }
   }
 }
@@ -233,6 +249,11 @@ ImageReader::Status ImageReader::Next(Camera* camera,
 
       if (!prev_camera_.VerifyParams()) {
         return Status::CAMERA_PARAM_ERROR;
+      }
+      if (options_.camera_refrac_model != "NONE") {
+        if (!prev_camera_.VerifyRefracParams()) {
+          return Status::CAMERA_PARAM_ERROR;
+        }
       }
 
       prev_camera_.SetCameraId(database_->WriteCamera(prev_camera_));
