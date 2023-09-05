@@ -57,9 +57,32 @@ struct Rigid3d {
   }
 };
 
+// 3D rigid transform with 6 degrees of freedom (templated version).
+// Transforms point x from a to b as: x_in_b = R * x_in_a + t.
+template <typename T>
+struct Rigid3dT {
+ public:
+  Eigen::Quaternion<T> rotation = Eigen::Quaternion<T>::Identity();
+  Eigen::Vector3<T> translation = Eigen::Vector3<T>::Zero();
+
+  Rigid3dT<T>() = default;
+  Rigid3dT<T>(const Eigen::Quaternion<T>& rotation,
+              const Eigen::Vector3<T>& translation)
+      : rotation(rotation), translation(translation) {}
+};
+
 // Return inverse transform.
 inline Rigid3d Inverse(const Rigid3d& b_from_a) {
   Rigid3d a_from_b;
+  a_from_b.rotation = b_from_a.rotation.inverse();
+  a_from_b.translation = a_from_b.rotation * -b_from_a.translation;
+  return a_from_b;
+}
+
+// Return inverse transform (templated version).
+template <typename T>
+inline Rigid3dT<T> Inverse(const Rigid3dT<T>& b_from_a) {
+  Rigid3dT<T> a_from_b;
   a_from_b.rotation = b_from_a.rotation.inverse();
   a_from_b.translation = a_from_b.rotation * -b_from_a.translation;
   return a_from_b;
@@ -82,9 +105,27 @@ inline Eigen::Vector3d operator*(const Rigid3d& t, const Eigen::Vector3d& x) {
   return t.rotation * x + t.translation;
 }
 
+// Templated version.
+template <typename T>
+inline Eigen::Vector3<T> operator*(const Rigid3dT<T>& t,
+                                   const Eigen::Vector3<T>& x) {
+  return t.rotation * x + t.translation;
+}
+
 // Concatenate transforms such one can write expressions like:
 //      d_from_a = d_from_c * c_from_b * b_from_a
 inline Rigid3d operator*(const Rigid3d& c_from_b, const Rigid3d& b_from_a) {
+  Rigid3d cFromA;
+  cFromA.rotation = (c_from_b.rotation * b_from_a.rotation).normalized();
+  cFromA.translation =
+      c_from_b.translation + (c_from_b.rotation * b_from_a.translation);
+  return cFromA;
+}
+
+// Templated version.
+template <typename T>
+inline Rigid3dT<T> operator*(const Rigid3dT<T>& c_from_b,
+                             const Rigid3dT<T>& b_from_a) {
   Rigid3d cFromA;
   cFromA.rotation = (c_from_b.rotation * b_from_a.rotation).normalized();
   cFromA.translation =
