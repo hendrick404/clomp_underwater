@@ -255,6 +255,8 @@ void OptionManager::AddExtractionOptions() {
                               &image_reader->default_focal_length_factor);
   AddAndRegisterDefaultOption("ImageReader.camera_mask_path",
                               &image_reader->camera_mask_path);
+  AddAndRegisterDefaultOption("ImageReader.pose_prior_path",
+                              &image_reader->pose_prior_path);
 
   AddAndRegisterDefaultOption("SiftExtraction.num_threads",
                               &sift_extraction->num_threads);

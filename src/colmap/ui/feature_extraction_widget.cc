@@ -79,6 +79,8 @@ SIFTExtractionWidget::SIFTExtractionWidget(QWidget* parent,
   AddOptionDirPath(&options->image_reader->mask_path, "mask_path");
   AddOptionFilePath(&options->image_reader->camera_mask_path,
                     "camera_mask_path");
+  // Directory that contains Pose prior files (.csv).
+  AddOptionDirPath(&options->image_reader->pose_prior_path, "pose_prior_path");
 
   AddOptionInt(&options->sift_extraction->max_image_size, "max_image_size");
   AddOptionInt(&options->sift_extraction->max_num_features, "max_num_features");

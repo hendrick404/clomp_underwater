@@ -199,4 +199,86 @@ std::vector<Eigen::Vector3d> GPSTransform::ENUToXYZ(
   return xyz;
 }
 
+std::vector<Eigen::Vector3d> GPSTransform::EllToNED(
+    const std::vector<Eigen::Vector3d>& ell,
+    const double lat0,
+    const double lon0,
+    const double alt0) const {
+  // Convert GPS (lat / lon / alt) to ECEF
+  std::vector<Eigen::Vector3d> xyz = EllToXYZ(ell);
+
+  return XYZToNED(xyz, lat0, lon0, alt0);
+}
+
+std::vector<Eigen::Vector3d> GPSTransform::XYZToNED(
+    const std::vector<Eigen::Vector3d>& xyz,
+    const double lat0,
+    const double lon0,
+    const double alt0) const {
+  std::vector<Eigen::Vector3d> ned(xyz.size());
+
+  // https://en.wikipedia.org/wiki/Local_tangent_plane_coordinates
+
+  // ECEF to NED Rot :
+  const double cos_lat0 = std::cos(DegToRad(lat0));
+  const double sin_lat0 = std::sin(DegToRad(lat0));
+
+  const double cos_lon0 = std::cos(DegToRad(lon0));
+  const double sin_lon0 = std::sin(DegToRad(lon0));
+
+  Eigen::Matrix3d R;
+  R << -sin_lat0 * cos_lon0, -sin_lat0 * sin_lon0, cos_lat0, -sin_lon0,
+      cos_lon0, 0, -cos_lat0 * cos_lon0, -cos_lat0 * sin_lon0, -sin_lat0;
+
+  // Convert ECEF to ENU coords. (w.r.t. ECEF ref == EllToXYZ(lat0, lon0, alt0))
+  const Eigen::Vector3d xyz_ref =
+      EllToXYZ({Eigen::Vector3d(lat0, lon0, alt0)})[0];
+  for (size_t i = 0; i < xyz.size(); ++i) {
+    ned[i] = R * (xyz[i] - xyz_ref);
+  }
+
+  return ned;
+}
+
+std::vector<Eigen::Vector3d> GPSTransform::NEDToEll(
+    const std::vector<Eigen::Vector3d>& ned,
+    const double lat0,
+    const double lon0,
+    const double alt0) const {
+  return XYZToEll((NEDToXYZ(ned, lat0, lon0, alt0)));
+}
+
+std::vector<Eigen::Vector3d> GPSTransform::NEDToXYZ(
+    const std::vector<Eigen::Vector3d>& ned,
+    const double lat0,
+    const double lon0,
+    const double alt0) const {
+  std::vector<Eigen::Vector3d> xyz(ned.size());
+
+  // ECEF ref (origin)
+  const Eigen::Vector3d xyz_ref =
+      EllToXYZ({Eigen::Vector3d(lat0, lon0, alt0)})[0];
+
+  // NED to ECEF Rot :
+  const double cos_lat0 = std::cos(DegToRad(lat0));
+  const double sin_lat0 = std::sin(DegToRad(lat0));
+
+  const double cos_lon0 = std::cos(DegToRad(lon0));
+  const double sin_lon0 = std::sin(DegToRad(lon0));
+
+  Eigen::Matrix3d R;
+  R << -sin_lat0 * cos_lon0, -sin_lat0 * sin_lon0, cos_lat0, -sin_lon0,
+      cos_lon0, 0, -cos_lat0 * cos_lon0, -cos_lat0 * sin_lon0, -sin_lat0;
+
+  // R is ECEF to NED so Transpose to get inverse
+  R.transposeInPlace();
+
+  // Convert NED to ECEF coords.
+  for (size_t i = 0; i < ned.size(); ++i) {
+    xyz[i] = (R * ned[i]) + xyz_ref;
+  }
+
+  return xyz;
+}
+
 }  // namespace colmap

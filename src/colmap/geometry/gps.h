@@ -73,6 +73,31 @@ class GPSTransform {
                                         double lon0,
                                         double alt0) const;
 
+  // Convert GPS (lat / lon / alt) to NED coords. with lat0 and lon0
+  // defining the origin of the ENU frame.
+  // Note: there is a slightly difference between the above implementation.
+  // Here, lat0, lon0, alt0 will always be the NED origin instead of the first
+  // element of xyz.
+  std::vector<Eigen::Vector3d> EllToNED(const std::vector<Eigen::Vector3d>& ell,
+                                        double lat0,
+                                        double lon0,
+                                        double alt0) const;
+
+  std::vector<Eigen::Vector3d> XYZToNED(const std::vector<Eigen::Vector3d>& xyz,
+                                        double lat0,
+                                        double lon0,
+                                        double alt0) const;
+
+  std::vector<Eigen::Vector3d> NEDToEll(const std::vector<Eigen::Vector3d>& ned,
+                                        double lat0,
+                                        double lon0,
+                                        double alt0) const;
+
+  std::vector<Eigen::Vector3d> NEDToXYZ(const std::vector<Eigen::Vector3d>& ned,
+                                        double lat0,
+                                        double lon0,
+                                        double alt0) const;
+
  private:
   // Semimajor axis.
   double a_;

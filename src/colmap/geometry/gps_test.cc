@@ -291,4 +291,134 @@ TEST(GPS, ENUToXYZ) {
   }
 }
 
+TEST(GPS, EllToNEDWGS84) {
+  std::vector<Eigen::Vector3d> ell;
+  ell.emplace_back(48 + 8. / 60 + 51.70361 / 3600,
+                   11 + 34. / 60 + 10.51777 / 3600,
+                   561.1851);
+  ell.emplace_back(48 + 8. / 60 + 52.40575 / 3600,
+                   11 + 34. / 60 + 11.77179 / 3600,
+                   561.1509);
+  std::vector<Eigen::Vector3d> ref_xyz;
+  ref_xyz.emplace_back(
+      4.177239709042750e6, 0.855153779923415e6, 4.728267404769168e6);
+  ref_xyz.emplace_back(
+      4.177218660452103e6, 0.855175931344048e6, 4.728281850382507e6);
+
+  GPSTransform gps_tform(GPSTransform::WGS84);
+
+  // Get lat0, lon0 origin from ref
+  const auto ori_ell = gps_tform.XYZToEll({ref_xyz[0]})[0];
+
+  // Get NED ref from ECEF ref
+  const auto ref_ned = gps_tform.XYZToNED(ref_xyz, ori_ell(0), ori_ell(1), 0.0);
+
+  // Get NED from Ell
+  const auto ned = gps_tform.EllToNED(ell, ori_ell(0), ori_ell(1), 0.0);
+
+  for (size_t i = 0; i < ell.size(); ++i) {
+    EXPECT_TRUE(ned[i].isApprox(ref_ned[i], 1e-8));
+  }
+}
+
+TEST(GSP, XYZToNED) {
+  std::vector<Eigen::Vector3d> ell;
+  ell.emplace_back(48 + 8. / 60 + 51.70361 / 3600,
+                   11 + 34. / 60 + 10.51777 / 3600,
+                   561.1851);
+  ell.emplace_back(48 + 8. / 60 + 52.40575 / 3600,
+                   11 + 34. / 60 + 11.77179 / 3600,
+                   561.1509);
+  std::vector<Eigen::Vector3d> ref_xyz;
+  ref_xyz.emplace_back(
+      4.177239709042750e6, 0.855153779923415e6, 4.728267404769168e6);
+  ref_xyz.emplace_back(
+      4.177218660452103e6, 0.855175931344048e6, 4.728281850382507e6);
+
+  GPSTransform gps_tform(GPSTransform::WGS84);
+
+  const auto xyz = gps_tform.EllToXYZ(ell);
+
+  // Get lat0, lon0 origin from ref
+  const auto ori_ell = gps_tform.XYZToEll({ref_xyz[0]})[0];
+
+  // Get NED from ECEF ref
+  const auto ref_ned = gps_tform.XYZToNED(ref_xyz, ori_ell(0), ori_ell(1), 0.0);
+
+  // Get NED from ECEF
+  const auto ned = gps_tform.XYZToNED(xyz, ori_ell(0), ori_ell(1), 0.0);
+
+  for (size_t i = 0; i < ell.size(); ++i) {
+    EXPECT_TRUE(ned[i].isApprox(ref_ned[i], 1e-8));
+  }
+}
+
+TEST(GPS, NEDToEllWGS84) {
+  std::vector<Eigen::Vector3d> ref_ell;
+  ref_ell.emplace_back(48 + 8. / 60 + 51.70361 / 3600,
+                       11 + 34. / 60 + 10.51777 / 3600,
+                       561.1851);
+  ref_ell.emplace_back(48 + 8. / 60 + 52.40575 / 3600,
+                       11 + 34. / 60 + 11.77179 / 3600,
+                       561.1509);
+
+  std::vector<Eigen::Vector3d> xyz;
+  xyz.emplace_back(
+      4.177239709042750e6, 0.855153779923415e6, 4.728267404769168e6);
+  xyz.emplace_back(
+      4.177218660452103e6, 0.855175931344048e6, 4.728281850382507e6);
+
+  GPSTransform gps_tform(GPSTransform::WGS84);
+
+  // Get lat0, lon0 origin from ref
+  const auto ori_ell = gps_tform.XYZToEll(xyz);
+  const double lat0 = ori_ell[0](0);
+  const double lon0 = ori_ell[0](1);
+  const double alt0 = ori_ell[0](2);
+
+  // Get NED from ECEF
+  const auto ned = gps_tform.XYZToNED(xyz, lat0, lon0, alt0);
+
+  const auto xyz_ned = gps_tform.NEDToXYZ(ned, lat0, lon0, alt0);
+
+  // Get Ell from NED
+  const auto ell = gps_tform.NEDToEll(ned, lat0, lon0, alt0);
+
+  for (size_t i = 0; i < ell.size(); ++i) {
+    EXPECT_TRUE(ell[i].isApprox(ref_ell[i], 1e-5));
+  }
+}
+
+TEST(GPS, NEDToXYZ) {
+  std::vector<Eigen::Vector3d> ell;
+  ell.emplace_back(48 + 8. / 60 + 51.70361 / 3600,
+                   11 + 34. / 60 + 10.51777 / 3600,
+                   561.1851);
+  ell.emplace_back(48 + 8. / 60 + 52.40575 / 3600,
+                   11 + 34. / 60 + 11.77179 / 3600,
+                   561.1509);
+  std::vector<Eigen::Vector3d> ref_xyz;
+  ref_xyz.emplace_back(
+      4.177239709042750e6, 0.855153779923415e6, 4.728267404769168e6);
+  ref_xyz.emplace_back(
+      4.177218660452103e6, 0.855175931344048e6, 4.728281850382507e6);
+
+  GPSTransform gps_tform(GPSTransform::WGS84);
+
+  // Get lat0, lon0 origin from Ell
+  const double lat0 = ell[0](0);
+  const double lon0 = ell[0](1);
+  const double alt0 = ell[0](2);
+
+  // Get NED from Ell
+  const auto ned = gps_tform.EllToNED(ell, lat0, lon0, alt0);
+
+  // Get XYZ from NED
+  const auto xyz = gps_tform.NEDToXYZ(ned, lat0, lon0, alt0);
+
+  for (size_t i = 0; i < ell.size(); ++i) {
+    EXPECT_TRUE(xyz[i].isApprox(ref_xyz[i], 1e-8));
+  }
+}
+
 }  // namespace colmap

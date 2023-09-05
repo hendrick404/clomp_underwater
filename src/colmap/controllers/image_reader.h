@@ -97,6 +97,15 @@ struct ImageReaderOptions {
   // intensity value 0 in grayscale).
   std::string camera_mask_path = "";
 
+  // Optional root path to folder which contains pose prior files (stored as
+  // .csv). For a given image,  the corresponding pose prior file must have the
+  // same sub-path below this root as the image has below image_path. The
+  // filename must be equal, aside from the added extension .csv. For example,
+  // for an image image_path/abs/012.jpg, the csv would be
+  // pose_prior_path/abc/012.csv. The file must contain information of Yaw,
+  // Pitch, Roll, Latitude, Longitude, Depth.
+  std::string pose_prior_path = "";
+
   bool Check() const;
 };
 
