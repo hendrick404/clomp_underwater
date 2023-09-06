@@ -235,28 +235,38 @@ bool CovRigid3dTransform::Transform(const Rigid3d& tform_src,
                                     Rigid3d& tform_dst,
                                     Eigen::Matrix7d& cov_dst) const {
   Eigen::Matrix<double, 14, 1> tform_vec_src;
-  for (size_t i = 0; i < 4; i++) {
-    tform_vec_src(i) = qvec_src(i);
-    tform_vec_src(i + 7) = qvec_src_to_dst(i);
-  }
-  for (size_t i = 0; i < 3; i++) {
-    pose_src(i + 4) = tvec_src(i);
-    pose_src(i + 11) = tvec_src_to_dst(i);
-  }
+  tform_vec_src(0) = tform_src.rotation.w();
+  tform_vec_src(1) = tform_src.rotation.x();
+  tform_vec_src(2) = tform_src.rotation.y();
+  tform_vec_src(3) = tform_src.rotation.z();
+  tform_vec_src(4) = tform_src.translation.x();
+  tform_vec_src(5) = tform_src.translation.y();
+  tform_vec_src(6) = tform_src.translation.z();
+  tform_vec_src(7) = dst_from_src.rotation.w();
+  tform_vec_src(8) = dst_from_src.rotation.x();
+  tform_vec_src(9) = dst_from_src.rotation.y();
+  tform_vec_src(10) = dst_from_src.rotation.z();
+  tform_vec_src(11) = dst_from_src.translation.x();
+  tform_vec_src(12) = dst_from_src.translation.y();
+  tform_vec_src(13) = dst_from_src.translation.z();
   Eigen::Matrix<double, 14, 14> cov_in = Eigen::Matrix<double, 14, 14>::Zero();
   cov_in.block<7, 7>(0, 0) = cov_src;
-  cov_in.block<7, 7>(7, 7) = cov_src_to_dst;
+  cov_in.block<7, 7>(7, 7) = cov_dst_from_src;
 
-  Eigen::VectorXd pose_dst;
+  Eigen::VectorXd tform_vec_dst;
   Eigen::MatrixXd cov_out;
-  pose_dst.setZero(7);
+  tform_vec_dst.setZero(7);
   cov_out.setZero(7, 7);
-  if (!TransformImpl(pose_src, cov_in, pose_dst, cov_out)) return false;
-  qvec_dst = NormalizeQuaternion(
-      Eigen::Vector4d(pose_dst(0), pose_dst(1), pose_dst(2), pose_dst(3)));
-  tvec_dst(0) = pose_dst(4);
-  tvec_dst(1) = pose_dst(5);
-  tvec_dst(2) = pose_dst(6);
+  if (!TransformImpl(tform_vec_src, cov_in, tform_vec_dst, cov_out))
+    return false;
+  tform_dst.rotation = Eigen::Quaterniond(tform_vec_dst(0),
+                                          tform_vec_dst(1),
+                                          tform_vec_dst(2),
+                                          tform_vec_dst(3))
+                           .normalized();
+  tform_dst.translation.x() = tform_vec_dst(4);
+  tform_dst.translation.y() = tform_vec_dst(5);
+  tform_dst.translation.z() = tform_vec_dst(6);
 
   cov_dst = cov_out;
   return true;
@@ -277,14 +287,28 @@ bool CovRigid3dTransform::TransformPoint(const Eigen::VectorXd& src,
                    &qvec_dst,
                    &tvec_dst);
 
+  Rigid3d tform_src, tform_dst_from_src;
+  tform_src.rotation =
+      Eigen::Quaterniond(src(0), src(1), src(2), src(3)).normalized();
+  tform_src.translation.x() = src(4);
+  tform_src.translation.y() = src(5);
+  tform_src.translation.z() = src(6);
+  tform_dst_from_src.rotation =
+      Eigen::Quaterniond(src(7), src(8), src(9), src(10)).normalized();
+  tform_dst_from_src.translation.x() = src(11);
+  tform_dst_from_src.translation.y() = src(12);
+  tform_dst_from_src.translation.z() = src(13);
+
+  Rigid3d tform_dst = tform_dst_from_src * tform_src;
+
   dst.setZero(7);
-  dst(0) = qvec_dst(0);
-  dst(1) = qvec_dst(1);
-  dst(2) = qvec_dst(2);
-  dst(3) = qvec_dst(3);
-  dst(4) = tvec_dst(0);
-  dst(5) = tvec_dst(1);
-  dst(6) = tvec_dst(2);
+  dst(0) = tform_dst.rotation.w();
+  dst(1) = tform_dst.rotation.x();
+  dst(2) = tform_dst.rotation.y();
+  dst(3) = tform_dst.rotation.z();
+  dst(4) = tform_dst.translation.x();
+  dst(5) = tform_dst.translation.y();
+  dst(6) = tform_dst.translation.z();
   return true;
 }
 
