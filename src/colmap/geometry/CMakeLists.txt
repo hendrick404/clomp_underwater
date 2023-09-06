@@ -41,6 +41,7 @@ COLMAP_ADD_LIBRARY(
         rigid3.h
         sim3.h sim3.cc
         triangulation.h triangulation.cc
+        covariance_transform.h covariance_transform.cc
     PUBLIC_LINK_LIBS
         colmap_util
         colmap_math
