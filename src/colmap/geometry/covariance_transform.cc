@@ -274,19 +274,6 @@ bool CovRigid3dTransform::Transform(const Rigid3d& tform_src,
 
 bool CovRigid3dTransform::TransformPoint(const Eigen::VectorXd& src,
                                          Eigen::VectorXd& dst) const {
-  Eigen::Vector4d qvec_src(src(0), src(1), src(2), src(3));
-  Eigen::Vector3d tvec_src(src(4), src(5), src(6));
-  Eigen::Vector4d qvec_src_to_dst(src(7), src(8), src(9), src(10));
-  Eigen::Vector3d tvec_src_to_dst(src(11), src(12), src(13));
-  Eigen::Vector4d qvec_dst;
-  Eigen::Vector3d tvec_dst;
-  ConcatenatePoses(qvec_src,
-                   tvec_src,
-                   qvec_src_to_dst,
-                   tvec_src_to_dst,
-                   &qvec_dst,
-                   &tvec_dst);
-
   Rigid3d tform_src, tform_dst_from_src;
   tform_src.rotation =
       Eigen::Quaterniond(src(0), src(1), src(2), src(3)).normalized();
