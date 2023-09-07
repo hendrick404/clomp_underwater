@@ -120,6 +120,9 @@ class IncrementalMapper {
     // Number of threads.
     int num_threads = -1;
 
+    // Whether to use pose prior in reconstruction.
+    bool use_pose_prior = false;
+
     // Method to find and select next best image to register.
     enum class ImageSelectionMethod {
       MAX_VISIBLE_POINTS_NUM,

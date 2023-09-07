@@ -70,6 +70,19 @@ struct BundleAdjustmentOptions {
   // due to the overhead of threading.
   int min_num_residuals_for_multi_threading = 50000;
 
+  // Whether to use pose prior in reconstruction.
+  bool use_pose_prior = false;
+
+  // Whether to use global pose prior std in bundle adjustment.
+  bool use_global_pose_prior_std = true;
+
+  // BA pose prior standard deviation. This is used to weight the importance of
+  // pose prior in BA.
+  std::vector<double> pose_prior_std;
+
+  // Whether to optimize prior_from_cam during bundle adjustment.
+  bool refine_prior_from_cam = false;
+
   // Ceres-Solver options.
   ceres::Solver::Options solver_options;
 

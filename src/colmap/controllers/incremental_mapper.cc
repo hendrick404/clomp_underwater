@@ -63,6 +63,19 @@ void AdjustGlobalBundle(const IncrementalMapperOptions& options,
     custom_ba_options.solver_options.max_linear_solver_iterations = 200;
   }
 
+  if (options.ba_refine_intrin_after_num_images > 0 &&
+      num_reg_images >
+          static_cast<size_t>(options.ba_refine_intrin_after_num_images)) {
+    custom_ba_options.refine_focal_length = true;
+    custom_ba_options.refine_principal_point = true;
+    custom_ba_options.refine_extra_params = true;
+  }
+
+  if (num_reg_images <
+      static_cast<size_t>(options.ba_refine_prior_from_cam_after_num_images)) {
+    custom_ba_options.refine_prior_from_cam = false;
+  }
+
   PrintHeading1("Global bundle adjustment");
   mapper->AdjustGlobalBundle(options.Mapper(), custom_ba_options);
 }
@@ -71,6 +84,22 @@ void IterativeLocalRefinement(const IncrementalMapperOptions& options,
                               const image_t image_id,
                               IncrementalMapper* mapper) {
   auto ba_options = options.LocalBundleAdjustment();
+
+  const size_t num_reg_images = mapper->GetReconstruction().NumRegImages();
+
+  if (options.ba_refine_intrin_after_num_images > 0 &&
+      num_reg_images >
+          static_cast<size_t>(options.ba_refine_intrin_after_num_images)) {
+    ba_options.refine_focal_length = true;
+    ba_options.refine_principal_point = true;
+    ba_options.refine_extra_params = true;
+  }
+
+  if (num_reg_images <
+      static_cast<size_t>(options.ba_refine_prior_from_cam_after_num_images)) {
+    ba_options.refine_prior_from_cam = false;
+  }
+
   for (int i = 0; i < options.ba_local_max_refinements; ++i) {
     const auto report =
         mapper->AdjustLocalBundle(options.Mapper(),
@@ -199,6 +228,7 @@ IncrementalMapper::Options IncrementalMapperOptions::Mapper() const {
   options.num_threads = num_threads;
   options.local_ba_num_images = ba_local_num_images;
   options.fix_existing_images = fix_existing_images;
+  options.use_pose_prior = use_pose_prior;
   return options;
 }
 
@@ -233,6 +263,9 @@ BundleAdjustmentOptions IncrementalMapperOptions::LocalBundleAdjustment()
   options.loss_function_scale = 1.0;
   options.loss_function_type =
       BundleAdjustmentOptions::LossFunctionType::SOFT_L1;
+  options.use_pose_prior = use_pose_prior;
+  options.use_global_pose_prior_std = ba_use_global_pose_prior_std;
+  options.pose_prior_std = CSVToVector<double>(ba_pose_prior_std);
   return options;
 }
 
@@ -257,6 +290,10 @@ BundleAdjustmentOptions IncrementalMapperOptions::GlobalBundleAdjustment()
       ba_min_num_residuals_for_multi_threading;
   options.loss_function_type =
       BundleAdjustmentOptions::LossFunctionType::TRIVIAL;
+  options.use_pose_prior = use_pose_prior;
+  options.use_global_pose_prior_std = ba_use_global_pose_prior_std;
+  options.pose_prior_std = CSVToVector<double>(ba_pose_prior_std);
+  options.refine_prior_from_cam = ba_refine_prior_from_cam;
   return options;
 }
 
