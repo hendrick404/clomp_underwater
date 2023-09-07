@@ -281,6 +281,18 @@ bool IncrementalMapperOptions::Check() const {
   CHECK_OPTION_GT(ba_global_max_refinements, 0);
   CHECK_OPTION_GE(ba_global_max_refinement_change, 0);
   CHECK_OPTION_GE(snapshot_images_freq, 0);
+  if (!prior_from_cam.empty()) {
+    const std::vector<double> params = CSVToVector<double>(prior_from_cam);
+    CHECK_OPTION_EQ(params.size(), 7);
+  }
+  if (use_pose_prior) {
+    CHECK_OPTION(!ba_pose_prior_std.empty());
+    const std::vector<double> params = CSVToVector<double>(ba_pose_prior_std);
+    CHECK_OPTION_EQ(params.size(), 6);
+    for (const double& val : params) {
+      CHECK_OPTION_GT(val, 0.0);
+    }
+  }
   CHECK_OPTION(Mapper().Check());
   CHECK_OPTION(Triangulation().Check());
   return true;

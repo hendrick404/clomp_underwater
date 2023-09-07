@@ -159,6 +159,14 @@ TEST(Database, Image) {
   image.SetCameraId(camera.CameraId());
   image.CamFromWorldPrior() = Rigid3d(Eigen::Quaterniond(0.1, 0.2, 0.3, 0.4),
                                       Eigen::Vector3d(0.1, 0.2, 0.3));
+  image.CovCamFromWorldPrior() = Eigen::Matrix7d::Identity();
+  image.CovCamFromWorldPrior()(0, 0) = 0.1;
+  image.CovCamFromWorldPrior()(1, 1) = 0.2;
+  image.CovCamFromWorldPrior()(2, 2) = 0.3;
+  image.CovCamFromWorldPrior()(3, 3) = 0.4;
+  image.CovCamFromWorldPrior()(4, 4) = 0.5;
+  image.CovCamFromWorldPrior()(5, 5) = 0.6;
+  image.CovCamFromWorldPrior()(6, 6) = 0.7;
   image.SetImageId(database.WriteImage(image));
   EXPECT_EQ(database.NumImages(), 1);
   EXPECT_TRUE(database.ExistsImage(image.ImageId()));
@@ -169,7 +177,9 @@ TEST(Database, Image) {
             image.CamFromWorldPrior().rotation.coeffs());
   EXPECT_EQ(read_image.CamFromWorldPrior().translation,
             image.CamFromWorldPrior().translation);
+  EXPECT_EQ(read_image.CovCamFromWorldPrior(), image.CovCamFromWorldPrior());
   image.CamFromWorldPrior().translation.x() += 2;
+  image.CovCamFromWorldPrior()(1, 1) += 2;
   database.UpdateImage(image);
   read_image = database.ReadImage(image.ImageId());
   EXPECT_EQ(read_image.ImageId(), image.ImageId());
@@ -178,6 +188,7 @@ TEST(Database, Image) {
             image.CamFromWorldPrior().rotation.coeffs());
   EXPECT_EQ(read_image.CamFromWorldPrior().translation,
             image.CamFromWorldPrior().translation);
+  EXPECT_EQ(read_image.CovCamFromWorldPrior(), image.CovCamFromWorldPrior());
   Image image2 = image;
   image2.SetName("test2");
   image2.SetImageId(image.ImageId() + 1);

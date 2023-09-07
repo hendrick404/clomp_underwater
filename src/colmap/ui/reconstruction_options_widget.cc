@@ -46,6 +46,8 @@ MapperGeneralOptionsWidget::MapperGeneralOptionsWidget(QWidget* parent,
   AddOptionInt(&options->mapper->num_threads, "num_threads", -1);
   AddOptionInt(&options->mapper->min_num_matches, "min_num_matches");
   AddOptionBool(&options->mapper->ignore_watermarks, "ignore_watermarks");
+  AddOptionBool(&options->mapper->use_pose_prior, "use_pose_prior");
+  AddOptionText(&options->mapper->prior_from_cam, "prior_from_cam");
   AddOptionDirPath(&options->mapper->snapshot_path, "snapshot_path");
   AddOptionInt(
       &options->mapper->snapshot_images_freq, "snapshot_images_freq", 0);
@@ -148,6 +150,15 @@ MapperBundleAdjustmentOptionsWidget::MapperBundleAdjustmentOptionsWidget(
                   1,
                   1e-6,
                   6);
+
+  AddSpacer();
+
+  AddSection("Use pose prior in Bundle Adjustment");
+  AddOptionBool(&options->mapper->ba_use_global_pose_prior_std,
+                "use_global_pose_prior_std");
+  AddOptionText(&options->mapper->ba_pose_prior_std, "pose_prior_std");
+  AddOptionBool(&options->mapper->ba_refine_prior_from_cam,
+                "refine_prior_from_cam");
 }
 
 MapperFilteringOptionsWidget::MapperFilteringOptionsWidget(

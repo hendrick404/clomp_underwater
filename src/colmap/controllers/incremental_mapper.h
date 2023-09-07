@@ -130,6 +130,41 @@ struct IncrementalMapperOptions {
   // If reconstruction is provided as input, fix the existing image poses.
   bool fix_existing_images = false;
 
+  // Whether to use pose prior in reconstruction.
+  bool use_pose_prior = false;
+
+  // If using pose priors in reconstruction, prior_from_cam specifies the
+  // relative transformation from the camera coordinate frame to the prior
+  // coordinate frame. The prior coordinate frame can be e.g. vehicle body,
+  // navigation sensor, etc. If empty, the transformation is identity, meaning
+  // the prior frame is the same as the camera frame. The format of the string
+  // is given by: QW, QX, QY, QZ, TX, TY, TZ. Short: (prior_from_camera, or
+  // p_from_c)
+  std::string prior_from_cam = "";
+
+  // Use global pose prior weight in bundle adjustment.
+  bool ba_use_global_pose_prior_std = true;
+
+  // Pose prior standard deviation when using pose prior constraint in bundle
+  // adjustment. The standard deviation is specified as:
+  //
+  // First 3 components: standard deviation of 3D rotation.
+  // Last 3 components: standard deviation of translation in [meter].
+  /// TODO: Currently we are using a fixed STD for all images, which is not
+  // optimal of course. Better way to go is to get covariance matrix from sensor
+  // reading
+  std::string ba_pose_prior_std = "0.1, 0.1, 0.1, 0.1, 0.1, 0.1";
+
+  // Whether to optimize prior_from_cam during bundle adjustment.
+  bool ba_refine_prior_from_cam = false;
+
+  // Refine prior_from_cam after registering a certain number of images.
+  int ba_refine_prior_from_cam_after_num_images = 800;
+
+  // Whether to refine all intrinsic parameters after registering a certain
+  // number of images.
+  int ba_refine_intrin_after_num_images = -1;
+
   IncrementalMapper::Options Mapper() const;
   IncrementalTriangulator::Options Triangulation() const;
   BundleAdjustmentOptions LocalBundleAdjustment() const;

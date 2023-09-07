@@ -65,6 +65,8 @@ ImageReader::ImageReader(const ImageReaderOptions& options, Database* database)
       EnsureTrailingSlash(StringReplace(options_.image_path, "\\", "/"));
   options_.mask_path =
       EnsureTrailingSlash(StringReplace(options_.mask_path, "\\", "/"));
+  options_.pose_prior_path =
+      EnsureTrailingSlash(StringReplace(options_.pose_prior_path, "\\", "/"));
 
   // Get a list of all files in the image path, sorted by image name.
   if (options_.image_list.empty()) {
@@ -265,14 +267,31 @@ ImageReader::Status ImageReader::Next(Camera* camera,
     image->SetCameraId(prev_camera_.CameraId());
 
     //////////////////////////////////////////////////////////////////////////////
-    // Extract GPS data.
+    // Extract GPS data (extended to read pose prior data from `.csv` file).
     //////////////////////////////////////////////////////////////////////////////
 
-    Eigen::Vector3d& translation_prior = image->CamFromWorldPrior().translation;
-    if (!bitmap->ExifLatitude(&translation_prior.x()) ||
-        !bitmap->ExifLongitude(&translation_prior.y()) ||
-        !bitmap->ExifAltitude(&translation_prior.z())) {
-      translation_prior.setConstant(std::numeric_limits<double>::quiet_NaN());
+    if (options_.pose_prior_path != "/") {
+      std::string root, ext;
+      SplitFileExtension(image->Name(), &root, &ext);
+      const std::string pose_prior_path =
+          JoinPaths(options_.pose_prior_path, root + ".csv");
+      Rigid3d prior_from_world;
+      Eigen::Matrix7d cov_prior_from_world;
+      if (ExistsFile(pose_prior_path) &&
+          !pose_prior_.Read(
+              pose_prior_path, &prior_from_world, &cov_prior_from_world)) {
+        return Status::POSE_PRIOR_ERROR;
+      }
+      image->CamFromWorldPrior() = prior_from_world;
+      image->CovCamFromWorldPrior() = cov_prior_from_world;
+    } else {
+      Eigen::Vector3d& translation_prior =
+          image->CamFromWorldPrior().translation;
+      if (!bitmap->ExifLatitude(&translation_prior.x()) ||
+          !bitmap->ExifLongitude(&translation_prior.y()) ||
+          !bitmap->ExifAltitude(&translation_prior.z())) {
+        translation_prior.setConstant(std::numeric_limits<double>::quiet_NaN());
+      }
     }
   }
 

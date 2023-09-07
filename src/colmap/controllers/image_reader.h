@@ -34,6 +34,7 @@
 #include "colmap/scene/database.h"
 #include "colmap/sensor/bitmap.h"
 #include "colmap/util/threading.h"
+#include "colmap/geometry/pose_prior.h"
 
 #include <unordered_set>
 
@@ -121,7 +122,8 @@ class ImageReader {
     BITMAP_ERROR,
     CAMERA_SINGLE_DIM_ERROR,
     CAMERA_EXIST_DIM_ERROR,
-    CAMERA_PARAM_ERROR
+    CAMERA_PARAM_ERROR,
+    POSE_PRIOR_ERROR,
   };
 
   ImageReader(const ImageReaderOptions& options, Database* database);
@@ -142,6 +144,9 @@ class ImageReader {
   // Names of image sub-folders.
   std::string prev_image_folder_;
   std::unordered_set<std::string> image_folders_;
+
+  // Pose prior reader.
+  PosePrior pose_prior_;
 };
 
 }  // namespace colmap

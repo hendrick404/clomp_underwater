@@ -241,6 +241,8 @@ void OptionManager::AddExtractionOptions() {
                               &image_reader->mask_path);
   AddAndRegisterDefaultOption("ImageReader.camera_model",
                               &image_reader->camera_model);
+  AddAndRegisterDefaultOption("ImageReader.camera_refrac_model",
+                              &image_reader->camera_refrac_model);
   AddAndRegisterDefaultOption("ImageReader.single_camera",
                               &image_reader->single_camera);
   AddAndRegisterDefaultOption("ImageReader.single_camera_per_folder",
@@ -251,6 +253,8 @@ void OptionManager::AddExtractionOptions() {
                               &image_reader->existing_camera_id);
   AddAndRegisterDefaultOption("ImageReader.camera_params",
                               &image_reader->camera_params);
+  AddAndRegisterDefaultOption("ImageReader.camera_refrac_params",
+                              &image_reader->camera_refrac_params);
   AddAndRegisterDefaultOption("ImageReader.default_focal_length_factor",
                               &image_reader->default_focal_length_factor);
   AddAndRegisterDefaultOption("ImageReader.camera_mask_path",
@@ -546,6 +550,19 @@ void OptionManager::AddMapperOptions() {
                               &mapper->snapshot_images_freq);
   AddAndRegisterDefaultOption("Mapper.fix_existing_images",
                               &mapper->fix_existing_images);
+  AddAndRegisterDefaultOption("Mapper.use_pose_prior", &mapper->use_pose_prior);
+  AddAndRegisterDefaultOption("Mapper.prior_from_cam", &mapper->prior_from_cam);
+  AddAndRegisterDefaultOption("Mapper.ba_use_global_pose_prior_std",
+                              &mapper->ba_use_global_pose_prior_std);
+  AddAndRegisterDefaultOption("Mapper.ba_pose_prior_std",
+                              &mapper->ba_pose_prior_std);
+  AddAndRegisterDefaultOption("Mapper.ba_refine_prior_from_cam",
+                              &mapper->ba_refine_prior_from_cam);
+  AddAndRegisterDefaultOption(
+      "Mapper.ba_refine_prior_from_cam_after_num_images",
+      &mapper->ba_refine_prior_from_cam_after_num_images);
+  AddAndRegisterDefaultOption("Mapper.ba_refine_intrin_after_num_images",
+                              &mapper->ba_refine_intrin_after_num_images);
 
   // IncrementalMapper.
   AddAndRegisterDefaultOption("Mapper.init_min_num_inliers",

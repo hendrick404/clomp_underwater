@@ -241,7 +241,7 @@ Camera ReadCameraRow(sqlite3_stmt* sql_stmt) {
   return camera;
 }
 
-Image ReadImageRow(sqlite3_stmt* sql_stmt) {
+Image ReadImageRow(sqlite3_stmt* sql_stmt, int rc) {
   Image image;
 
   image.SetImageId(static_cast<image_t>(sqlite3_column_int64(sql_stmt, 0)));
@@ -264,6 +264,10 @@ Image ReadImageRow(sqlite3_stmt* sql_stmt) {
   image.CamFromWorldPrior().translation.x() = ExtractDoubleColumnOrNaN(7);
   image.CamFromWorldPrior().translation.y() = ExtractDoubleColumnOrNaN(8);
   image.CamFromWorldPrior().translation.z() = ExtractDoubleColumnOrNaN(9);
+
+  image.CovCamFromWorldPrior() =
+      ReadStaticMatrixBlob<Eigen::Matrix7d>(sql_stmt, rc, 10);
+  image.CovCamFromWorldPrior().transposeInPlace();
 
   return image;
 }
@@ -432,7 +436,7 @@ Image Database::ReadImage(const image_t image_id) const {
 
   const int rc = SQLITE3_CALL(sqlite3_step(sql_stmt_read_image_id_));
   if (rc == SQLITE_ROW) {
-    image = ReadImageRow(sql_stmt_read_image_id_);
+    image = ReadImageRow(sql_stmt_read_image_id_, rc);
   }
 
   SQLITE3_CALL(sqlite3_reset(sql_stmt_read_image_id_));
@@ -451,7 +455,7 @@ Image Database::ReadImageWithName(const std::string& name) const {
 
   const int rc = SQLITE3_CALL(sqlite3_step(sql_stmt_read_image_name_));
   if (rc == SQLITE_ROW) {
-    image = ReadImageRow(sql_stmt_read_image_name_);
+    image = ReadImageRow(sql_stmt_read_image_name_, rc);
   }
 
   SQLITE3_CALL(sqlite3_reset(sql_stmt_read_image_name_));
@@ -463,8 +467,10 @@ std::vector<Image> Database::ReadAllImages() const {
   std::vector<Image> images;
   images.reserve(NumImages());
 
-  while (SQLITE3_CALL(sqlite3_step(sql_stmt_read_images_)) == SQLITE_ROW) {
-    images.push_back(ReadImageRow(sql_stmt_read_images_));
+  int rc;
+  while ((rc = SQLITE3_CALL(sqlite3_step(sql_stmt_read_images_))) ==
+         SQLITE_ROW) {
+    images.push_back(ReadImageRow(sql_stmt_read_images_, rc));
   }
 
   SQLITE3_CALL(sqlite3_reset(sql_stmt_read_images_));
@@ -720,6 +726,11 @@ image_t Database::WriteImage(const Image& image,
   SQLITE3_CALL(sqlite3_bind_double(
       sql_stmt_add_image_, 10, image.CamFromWorldPrior().translation.z()));
 
+  // Transpose the matrices to obtain row-major data layout.
+  const Eigen::Matrix7d cov_cam_from_world_prior =
+      image.CovCamFromWorldPrior().transpose();
+  WriteStaticMatrixBlob(sql_stmt_add_image_, cov_cam_from_world_prior, 11);
+
   SQLITE3_CALL(sqlite3_step(sql_stmt_add_image_));
   SQLITE3_CALL(sqlite3_reset(sql_stmt_add_image_));
 
@@ -883,7 +894,11 @@ void Database::UpdateImage(const Image& image) const {
   SQLITE3_CALL(sqlite3_bind_double(
       sql_stmt_update_image_, 9, image.CamFromWorldPrior().translation.z()));
 
-  SQLITE3_CALL(sqlite3_bind_int64(sql_stmt_update_image_, 10, image.ImageId()));
+  const Eigen::Matrix7d cov_cam_from_world_prior =
+      image.CovCamFromWorldPrior().transpose();
+  WriteStaticMatrixBlob(sql_stmt_update_image_, cov_cam_from_world_prior, 10);
+
+  SQLITE3_CALL(sqlite3_bind_int64(sql_stmt_update_image_, 11, image.ImageId()));
 
   SQLITE3_CALL(sqlite3_step(sql_stmt_update_image_));
   SQLITE3_CALL(sqlite3_reset(sql_stmt_update_image_));
@@ -1140,8 +1155,9 @@ void Database::PrepareSQLStatements() {
 
   sql =
       "INSERT INTO images(image_id, name, camera_id, prior_qw, prior_qx, "
-      "prior_qy, prior_qz, prior_tx, prior_ty, prior_tz) VALUES(?, ?, ?, ?, ?, "
-      "?, ?, ?, ?, ?);";
+      "prior_qy, prior_qz, prior_tx, prior_ty, prior_tz, cov_prior"
+      ") VALUES(?, ?, ?, ?, ?, "
+      "?, ?, ?, ?, ?, ?);";
   SQLITE3_CALL(
       sqlite3_prepare_v2(database_, sql.c_str(), -1, &sql_stmt_add_image_, 0));
   sql_stmts_.push_back(sql_stmt_add_image_);
@@ -1159,7 +1175,8 @@ void Database::PrepareSQLStatements() {
 
   sql =
       "UPDATE images SET name=?, camera_id=?, prior_qw=?, prior_qx=?, "
-      "prior_qy=?, prior_qz=?, prior_tx=?, prior_ty=?, prior_tz=? WHERE "
+      "prior_qy=?, prior_qz=?, prior_tx=?, prior_ty=?, prior_tz=?, "
+      "cov_prior=? WHERE "
       "image_id=?;";
   SQLITE3_CALL(sqlite3_prepare_v2(
       database_, sql.c_str(), -1, &sql_stmt_update_image_, 0));
@@ -1349,6 +1366,7 @@ void Database::CreateImageTable() const {
       "    prior_tx   REAL,"
       "    prior_ty   REAL,"
       "    prior_tz   REAL,"
+      "    cov_prior BLOB,"
       "CONSTRAINT image_id_check CHECK(image_id >= 0 and image_id < %d),"
       "FOREIGN KEY(camera_id) REFERENCES cameras(camera_id));"
       "CREATE UNIQUE INDEX IF NOT EXISTS index_name ON images(name);",

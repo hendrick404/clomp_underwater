@@ -111,6 +111,14 @@ class Image {
   inline Rigid3d& CamFromWorld();
 
   // World to camera pose prior, e.g. given by EXIF gyroscope tag.
+  // Note: !!!Be careful with the convention here!!!
+  // The name from original COLMAP is called "camera from world prior", but we
+  // actually store the "prior from world pose" Here, `prior` stands for the
+  // prior coordinate frame, which can be e.g. vehicle body, navigation sensor,
+  // etc. If there is a transformation between the prior and the camera
+  // coordinate frame, then the actual pose of `camera from world prior` can be
+  // obtained by `camera from world prior` = `camera from prior` * `prior from
+  // world`.
   inline const Rigid3d& CamFromWorldPrior() const;
   inline Rigid3d& CamFromWorldPrior();
 
@@ -153,6 +161,10 @@ class Image {
   // Extract the viewing direction of the image.
   Eigen::Vector3d ViewingDirection() const;
 
+  // Access covariance of the world to camera pose prior.
+  inline const Eigen::Matrix7d& CovCamFromWorldPrior() const;
+  inline Eigen::Matrix7d& CovCamFromWorldPrior();
+
   // The number of levels in the 3D point multi-resolution visibility pyramid.
   static const int kNumPoint3DVisibilityPyramidLevels;
 
@@ -191,6 +203,9 @@ class Image {
 
   // The pose prior of the image, e.g. extracted from EXIF tags.
   Rigid3d cam_from_world_prior_;
+
+  // Covariance matrix of the pose prior measured as world to prior.
+  Eigen::Matrix7d cov_cam_from_world_prior_;
 
   // All image points, including points that are not part of a 3D point track.
   std::vector<struct Point2D> points2D_;
@@ -278,6 +293,14 @@ std::vector<struct Point2D>& Image::Points2D() { return points2D_; }
 
 bool Image::IsPoint3DVisible(const point2D_t point2D_idx) const {
   return num_correspondences_have_point3D_.at(point2D_idx) > 0;
+}
+
+const Eigen::Matrix7d& Image::CovCamFromWorldPrior() const {
+  return cov_cam_from_world_prior_;
+}
+
+Eigen::Matrix7d& Image::CovCamFromWorldPrior() {
+  return cov_cam_from_world_prior_;
 }
 
 }  // namespace colmap
