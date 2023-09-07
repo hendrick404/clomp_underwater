@@ -42,6 +42,7 @@ COLMAP_ADD_LIBRARY(
         sim3.h sim3.cc
         triangulation.h triangulation.cc
         covariance_transform.h covariance_transform.cc
+        pose_prior.h pose_prior.cc
     PUBLIC_LINK_LIBS
         colmap_util
         colmap_math
