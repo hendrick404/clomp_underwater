@@ -471,21 +471,25 @@ void BundleAdjuster::AddImageToProblem(const image_t image_id,
     ceres::CostFunction* cost_function = nullptr;
 
     if (options_.refine_prior_from_cam) {
-      // cost_function = AbsolutePoseWithRelTransformCostFunction::Create(
-      //     image.QvecPrior(), image.TvecPrior(), sqrt_information);
-      // problem_->AddResidualBlock(cost_function,
-      //                            nullptr,
-      //                            qvec_data,
-      //                            tvec_data,
-      //                            reconstruction->QvecCameraToPrior().data(),
-      //                            reconstruction->TvecCameraToPrior().data());
-      // SetQuaternionManifold(problem_.get(),
-      //                       reconstruction->QvecCameraToPrior().data());
+      cost_function = AbsolutePoseErrorWithRelTformCostFunction::Create(
+          image.CamFromWorldPrior(), sqrt_information);
+      problem_->AddResidualBlock(
+          cost_function,
+          nullptr,
+          cam_from_world_rotation,
+          cam_from_world_translation,
+          reconstruction->PriorFromCam().rotation.coeffs().data(),
+          reconstruction->PriorFromCam().translation.data());
+      SetQuaternionManifold(
+          problem_.get(),
+          reconstruction->PriorFromCam().rotation.coeffs().data());
     } else {
-      // cost_function = AbsolutePoseCostFunction::Create(
-      //     qvec_prior_w2c, tvec_prior_w2c, sqrt_information);
-      // problem_->AddResidualBlock(cost_function, nullptr, qvec_data,
-      // tvec_data);
+      cost_function = AbsolutePoseErrorCostFunction::Create(
+          cam_from_world_prior, sqrt_information);
+      problem_->AddResidualBlock(cost_function,
+                                 nullptr,
+                                 cam_from_world_rotation,
+                                 cam_from_world_translation);
     }
   }
 

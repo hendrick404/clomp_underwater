@@ -301,6 +301,158 @@ class SampsonErrorCostFunction {
   const double y2_;
 };
 
+// Cost function for the absolute difference between the estimated camera
+// center and the measured camera center.
+class AbsolutePositionErrorCostFunction {
+ public:
+  AbsolutePositionErrorCostFunction(const Eigen::Vector3d& position_measured,
+                                    const Eigen::Matrix3d& sqrt_information)
+      : position_measured_(position_measured),
+        sqrt_information_(sqrt_information) {}
+
+  static ceres::CostFunction* Create(const Eigen::Vector3d& position_measured,
+                                     const Eigen::Matrix3d& sqrt_information) {
+    return new ceres::
+        AutoDiffCostFunction<AbsolutePositionErrorCostFunction, 3, 4, 3>(
+            new AbsolutePositionErrorCostFunction(position_measured,
+                                                  sqrt_information));
+  }
+
+  template <typename T>
+  bool operator()(const T* const cam_from_world_rotation,
+                  const T* const cam_from_world_translation,
+                  T* residuals) const {
+    const Eigen::Matrix<T, 3, 1> position_estimated =
+        EigenQuaternionMap<T>(cam_from_world_rotation).inverse() *
+        -EigenVector3Map<T>(cam_from_world_translation);
+
+    Eigen::Map<Eigen::Matrix<T, 3, 1>> residuals_map(residuals);
+    residuals_map = position_estimated - position_measured_.cast<T>();
+    // Scale the residuals by the measurement uncertainty.
+    residuals_map.applyOnTheLeft(sqrt_information_.cast<T>());
+
+    return true;
+  }
+
+ private:
+  const Eigen::Vector3d position_measured_;
+  const Eigen::Matrix3d sqrt_information_;
+};
+
+// Cost function for the absolute difference in 6-DOFs between the estimated and
+// reference pose.
+class AbsolutePoseErrorCostFunction {
+ public:
+  AbsolutePoseErrorCostFunction(const Rigid3d& tform_measured,
+                                const Eigen::Matrix6d& sqrt_information)
+      : tform_measured_(tform_measured), sqrt_information_(sqrt_information) {}
+
+  static ceres::CostFunction* Create(const Rigid3d& tform_measured,
+                                     const Eigen::Matrix6d& sqrt_information) {
+    return new ceres::
+        AutoDiffCostFunction<AbsolutePoseErrorCostFunction, 6, 4, 3>(
+            new AbsolutePoseErrorCostFunction(tform_measured,
+                                              sqrt_information));
+  }
+
+  template <typename T>
+  bool operator()(const T* const rotation_estimated,
+                  const T* const translation_estimated,
+                  T* residuals) const {
+    // Compute the relative transform from the estimated tform to the measured
+    // tform.
+    const Eigen::Quaternion<T> rotation_estimated_inv =
+        EigenQuaternionMap<T>(rotation_estimated).inverse();
+    const Eigen::Quaternion<T> measured_from_estimated_rotation =
+        tform_measured_.rotation.cast<T>() * rotation_estimated_inv;
+    const Eigen::Matrix<T, 3, 1> measured_from_estimated_translation =
+        tform_measured_.translation.cast<T>() -
+        measured_from_estimated_rotation *
+            EigenVector3Map<T>(translation_estimated);
+
+    // Compute the residuals.
+    Eigen::Map<Eigen::Matrix<T, 6, 1>> residuals_map(residuals);
+    residuals_map.template block<3, 1>(0, 0) =
+        T(2.0) * measured_from_estimated_rotation.vec();
+    residuals_map.template block<3, 1>(3, 0) =
+        measured_from_estimated_translation;
+    // Scale the residuals by the measurement uncertainty.
+    residuals_map.applyOnTheLeft(sqrt_information_.cast<T>());
+
+    return true;
+  }
+
+ private:
+  const Rigid3d& tform_measured_;
+  const Eigen::Matrix6d sqrt_information_;
+};
+
+// Cost function for the absolute difference in 6-DOFs between the estimated and
+// reference pose. This cost function also enables optimizing the relative
+// transform between the current estimated pose and the target pose.
+class AbsolutePoseErrorWithRelTformCostFunction {
+ public:
+  AbsolutePoseErrorWithRelTformCostFunction(
+      const Rigid3d& tform_measured, const Eigen::Matrix6d& sqrt_information)
+      : tform_measured_(tform_measured), sqrt_information_(sqrt_information) {}
+
+  static ceres::CostFunction* Create(const Rigid3d& tform_measured,
+                                     const Eigen::Matrix6d& sqrt_information) {
+    return new ceres::AutoDiffCostFunction<
+        AbsolutePoseErrorWithRelTformCostFunction,
+        6,
+        4,
+        3,
+        4,
+        3>(new AbsolutePoseErrorWithRelTformCostFunction(tform_measured,
+                                                         sqrt_information));
+  }
+
+  // Note: target_from_current_rotation and target_from_current_translation
+  // satisify the following relation: target_pose = target_from_current *
+  // estimated_pose
+  template <typename T>
+  bool operator()(const T* const rotation_estimated,
+                  const T* const translation_estimated,
+                  const T* const target_from_current_rotation,
+                  const T* target_from_current_translation,
+                  T* residuals) const {
+    const Eigen::Quaternion<T> rotation_target_estimated =
+        (EigenQuaternionMap<T>(target_from_current_rotation) *
+         EigenQuaternionMap<T>(rotation_estimated))
+            .normalized();
+    const Eigen::Matrix<T, 3, 1> translation_target_estimated =
+        EigenVector3Map<T>(target_from_current_translation) +
+        (EigenQuaternionMap<T>(target_from_current_rotation) *
+         EigenVector3Map<T>(translation_estimated));
+
+    // Compute the relative transform from the estimated tform to the measured
+    // tform.
+    const Eigen::Quaternion<T> rotation_target_estimated_inv =
+        rotation_target_estimated.inverse();
+    const Eigen::Quaternion<T> measured_from_estimated_rotation =
+        tform_measured_.rotation.cast<T>() * rotation_target_estimated_inv;
+    const Eigen::Matrix<T, 3, 1> measured_from_estimated_translation =
+        tform_measured_.translation.cast<T>() -
+        measured_from_estimated_rotation * translation_target_estimated;
+
+    // Compute the residuals.
+    Eigen::Map<Eigen::Matrix<T, 6, 1>> residuals_map(residuals);
+    residuals_map.template block<3, 1>(0, 0) =
+        T(2.0) * measured_from_estimated_rotation.vec();
+    residuals_map.template block<3, 1>(3, 0) =
+        measured_from_estimated_translation;
+    // Scale the residuals by the measurement uncertainty.
+    residuals_map.applyOnTheLeft(sqrt_information_.cast<T>());
+
+    return true;
+  }
+
+ private:
+  const Rigid3d& tform_measured_;
+  const Eigen::Matrix6d sqrt_information_;
+};
+
 inline void SetQuaternionManifold(ceres::Problem* problem, double* quat_xyzw) {
 #if CERES_VERSION_MAJOR >= 3 || \
     (CERES_VERSION_MAJOR == 2 && CERES_VERSION_MINOR >= 1)
