@@ -760,6 +760,8 @@ void OptionManager::AddRenderOptions() {
                               &render->image_connections);
   AddAndRegisterDefaultOption("Render.projection_type",
                               &render->projection_type);
+  AddAndRegisterDefaultOption("Render.render_pose_prior",
+                              &render->render_pose_priors);
 }
 
 void OptionManager::Reset() {

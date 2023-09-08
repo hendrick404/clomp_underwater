@@ -178,6 +178,7 @@ RenderOptionsWidget::RenderOptionsWidget(QWidget* parent,
   AddSpacer();
 
   AddOptionBool(&options->render->image_connections, "Image connections");
+  AddOptionBool(&options->render->render_pose_priors, "Render pose priors");
 
   AddSpacer();
 

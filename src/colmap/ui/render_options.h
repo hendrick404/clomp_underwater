@@ -62,6 +62,9 @@ struct RenderOptions {
   // The projection type of the renderer.
   int projection_type = ProjectionType::PERSPECTIVE;
 
+  // Whether to render pose priors.
+  bool render_pose_priors = true;
+
   inline bool Check() const {
     CHECK_OPTION_GE(min_track_len, 0);
     CHECK_OPTION_GE(max_error, 0);

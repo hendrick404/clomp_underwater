@@ -362,6 +362,9 @@ class Reconstruction {
   // Create all image sub-directories in the given path.
   void CreateImageDirs(const std::string& path) const;
 
+  inline const Rigid3d& PriorFromCam() const;
+  inline Rigid3d& PriorFromCam();
+
  private:
   size_t FilterPoints3DWithSmallTriangulationAngle(
       double min_tri_angle, const std::unordered_set<point3D_t>& point3D_ids);
@@ -406,6 +409,15 @@ class Reconstruction {
 
   // Total number of added 3D points, used to generate unique identifiers.
   point3D_t num_added_points3D_;
+
+  // transformation from the camera coordinate frame to the prior coordinate
+  // frame.
+  /// TODO: This is not the right place to store such a parameter. A better
+  /// place would be
+  // base/image.h because prior_from_cam is related to pose of the image. Or,
+  // get a new class platform.h which specifically deal with platforms such as
+  // vehicle body / navigation sensor / odometry stuff like in OpenMVG
+  Rigid3d prior_from_cam_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -510,5 +522,9 @@ bool Reconstruction::ExistsImagePair(const image_pair_t pair_id) const {
 bool Reconstruction::IsImageRegistered(const image_t image_id) const {
   return Image(image_id).IsRegistered();
 }
+
+const Rigid3d& Reconstruction::PriorFromCam() const { return prior_from_cam_; }
+
+Rigid3d& Reconstruction::PriorFromCam() { return prior_from_cam_; }
 
 }  // namespace colmap

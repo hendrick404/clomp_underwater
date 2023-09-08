@@ -32,6 +32,7 @@
 #include "colmap/estimators/bundle_adjustment.h"
 
 #include "colmap/estimators/cost_functions.h"
+#include "colmap/geometry/covariance_transform.h"
 #include "colmap/scene/projection.h"
 #include "colmap/sensor/models.h"
 #include "colmap/util/misc.h"
@@ -415,6 +416,76 @@ void BundleAdjuster::AddImageToProblem(const image_t image_id,
                                  cam_from_world_translation,
                                  point3D.XYZ().data(),
                                  camera_params);
+    }
+  }
+
+  // Add pose prior constraints to problem if pose prior is used in
+  // reconstruction.
+  if (options_.use_pose_prior && !constant_cam_pose) {
+    const Rigid3d cam_from_prior = Inverse(reconstruction->PriorFromCam());
+    const Rigid3d cam_from_world_prior =
+        cam_from_prior * image.CamFromWorldPrior();
+
+    Eigen::Matrix6d information = Eigen::Matrix6d::Identity();
+
+    if (image.CovCamFromWorldPrior().isZero() ||
+        options_.use_global_pose_prior_std) {
+      // Image does not have covariance for pose prior. Then create an
+      // information matrix from user input.
+      Eigen::Matrix3d cov_rotation = Eigen::Matrix3d::Identity();
+      Eigen::Matrix3d cov_translation = Eigen::Matrix3d::Identity();
+      cov_rotation(0, 0) = std::pow(options_.pose_prior_std[0], 2);
+      cov_rotation(1, 1) = std::pow(options_.pose_prior_std[1], 2);
+      cov_rotation(2, 2) = std::pow(options_.pose_prior_std[2], 2);
+      cov_translation(0, 0) = std::pow(options_.pose_prior_std[3], 2);
+      cov_translation(1, 1) = std::pow(options_.pose_prior_std[4], 2);
+      cov_translation(2, 2) = std::pow(options_.pose_prior_std[5], 2);
+      information.block<3, 3>(0, 0) = cov_rotation.inverse();
+      information.block<3, 3>(3, 3) = cov_translation.inverse();
+    } else {
+      const Eigen::Matrix7d& cov_prior_from_world =
+          image.CovCamFromWorldPrior();
+
+      if (options_.refine_prior_from_cam) {
+        // If refine prior_from_cam transformation, then covariance matrix is
+        // directly `prior from world`.
+        information = cov_prior_from_world.inverse().block<6, 6>(1, 1);
+      } else {
+        Eigen::Matrix7d cov_cam_from_prior = Eigen::Matrix7d::Identity();
+        cov_cam_from_prior *= 1e-20;
+
+        Rigid3d tform_dst;
+        Eigen::Matrix7d cov_cam_from_world_prior;
+        CovRigid3dTransform cov_tfrom;
+        cov_tfrom.Transform(image.CamFromWorldPrior(),
+                            cov_prior_from_world,
+                            cam_from_prior,
+                            cov_cam_from_prior,
+                            tform_dst,
+                            cov_cam_from_world_prior);
+        information = cov_cam_from_world_prior.inverse().block<6, 6>(1, 1);
+      }
+    }
+
+    const Eigen::Matrix6d sqrt_information = information.llt().matrixL();
+    ceres::CostFunction* cost_function = nullptr;
+
+    if (options_.refine_prior_from_cam) {
+      // cost_function = AbsolutePoseWithRelTransformCostFunction::Create(
+      //     image.QvecPrior(), image.TvecPrior(), sqrt_information);
+      // problem_->AddResidualBlock(cost_function,
+      //                            nullptr,
+      //                            qvec_data,
+      //                            tvec_data,
+      //                            reconstruction->QvecCameraToPrior().data(),
+      //                            reconstruction->TvecCameraToPrior().data());
+      // SetQuaternionManifold(problem_.get(),
+      //                       reconstruction->QvecCameraToPrior().data());
+    } else {
+      // cost_function = AbsolutePoseCostFunction::Create(
+      //     qvec_prior_w2c, tvec_prior_w2c, sqrt_information);
+      // problem_->AddResidualBlock(cost_function, nullptr, qvec_data,
+      // tvec_data);
     }
   }
 
