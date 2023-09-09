@@ -290,8 +290,29 @@ bool IncrementalMapper::RegisterInitialImagePair(const Options& options,
     return false;
   }
 
-  image1.CamFromWorld() = Rigid3d();
-  image2.CamFromWorld() = prev_init_two_view_geometry_.cam2_from_cam1;
+  if (options.use_pose_prior) {
+    // If we use pose prior in reconstruction, we would register the first 2
+    // camers with their pose priors.
+    const Eigen::Vector3d proj_center1_prior =
+        image1.CamFromWorldPrior().rotation.inverse() *
+        -image1.CamFromWorldPrior().translation;
+    const Eigen::Vector3d proj_center2_prior =
+        image2.CamFromWorldPrior().rotation.inverse() *
+        -image2.CamFromWorldPrior().translation;
+    const double scale = (proj_center1_prior - proj_center2_prior).norm();
+    image1.CamFromWorld() =
+        Inverse(reconstruction_->PriorFromCam()) * image1.CamFromWorldPrior();
+
+    // Set the pose of image2 using the estimated two-view geometry scaled by
+    // the baseline measured from the projection center priors.
+    Rigid3d cam2_from_cam1_scaled = prev_init_two_view_geometry_.cam2_from_cam1;
+    cam2_from_cam1_scaled.translation *= scale;
+    image2.CamFromWorld() = cam2_from_cam1_scaled * image1.CamFromWorld();
+
+  } else {
+    image1.CamFromWorld() = Rigid3d();
+    image2.CamFromWorld() = prev_init_two_view_geometry_.cam2_from_cam1;
+  }
 
   const Eigen::Matrix3x4d cam_from_world1 = image1.CamFromWorld().ToMatrix();
   const Eigen::Matrix3x4d cam_from_world2 = image2.CamFromWorld().ToMatrix();
@@ -613,7 +634,7 @@ IncrementalMapper::AdjustLocalBundle(
     if (local_bundle.size() == 1) {
       ba_config.SetConstantCamPose(local_bundle[0]);
       ba_config.SetConstantCamPositions(image_id, {0});
-    } else if (local_bundle.size() > 1) {
+    } else if (local_bundle.size() > 1 && !options.use_pose_prior) {
       const image_t image_id1 = local_bundle[local_bundle.size() - 1];
       const image_t image_id2 = local_bundle[local_bundle.size() - 2];
       ba_config.SetConstantCamPose(image_id1);
@@ -706,10 +727,12 @@ bool IncrementalMapper::AdjustGlobalBundle(
   }
 
   // Fix 7-DOFs of the bundle adjustment problem.
-  ba_config.SetConstantCamPose(reg_image_ids[0]);
-  if (!options.fix_existing_images ||
-      !existing_image_ids_.count(reg_image_ids[1])) {
-    ba_config.SetConstantCamPositions(reg_image_ids[1], {0});
+  if (!options.use_pose_prior) {
+    ba_config.SetConstantCamPose(reg_image_ids[0]);
+    if (!options.fix_existing_images ||
+        !existing_image_ids_.count(reg_image_ids[1])) {
+      ba_config.SetConstantCamPositions(reg_image_ids[1], {0});
+    }
   }
 
   // Run bundle adjustment.
@@ -720,7 +743,15 @@ bool IncrementalMapper::AdjustGlobalBundle(
 
   // Normalize scene for numerical stability and
   // to avoid large scale changes in viewer.
-  reconstruction_->Normalize();
+  if (!options.use_pose_prior) {
+    reconstruction_->Normalize();
+  }
+  if (ba_options.refine_prior_from_cam) {
+    std::cout << "Refined prior_from_cam transform: \n"
+              << reconstruction_->PriorFromCam().rotation.coeffs().transpose()
+              << " " << reconstruction_->PriorFromCam().translation.transpose()
+              << std::endl;
+  }
 
   return true;
 }

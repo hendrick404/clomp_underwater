@@ -449,6 +449,16 @@ void IncrementalMapperController::Reconstruct(
         reconstruction_manager_->Get(reconstruction_idx);
 
     mapper.BeginReconstruction(reconstruction);
+    // Set prior_from_cam if pose prior is used in reconstruction.
+    if (init_mapper_options.use_pose_prior &&
+        !options_->prior_from_cam.empty()) {
+      const std::vector<double> params =
+          CSVToVector<double>(options_->prior_from_cam);
+      reconstruction->PriorFromCam() =
+          Rigid3d(Eigen::Quaterniond(params[0], params[1], params[2], params[3])
+                      .normalized(),
+                  Eigen::Vector3d(params[4], params[5], params[6]));
+    }
 
     ////////////////////////////////////////////////////////////////////////////
     // Register initial pair
