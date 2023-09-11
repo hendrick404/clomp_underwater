@@ -658,7 +658,7 @@ class SpatialFeatureMatcher : public Thread {
                                             .isFinite()
                                             .all();
         const Eigen::Vector3d position_prior =
-            has_rotation_prior ? image.CamFromWorldPrior().rotation *
+            has_rotation_prior ? image.CamFromWorldPrior().rotation.inverse() *
                                      -image.CamFromWorldPrior().translation
                                : translation_prior;
         location_matrix(num_locations, 0) =

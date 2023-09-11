@@ -383,7 +383,7 @@ class AbsolutePoseErrorCostFunction {
   }
 
  private:
-  const Rigid3d& tform_measured_;
+  const Rigid3d tform_measured_;
   const Eigen::Matrix6d sqrt_information_;
 };
 
@@ -449,7 +449,7 @@ class AbsolutePoseErrorWithRelTformCostFunction {
   }
 
  private:
-  const Rigid3d& tform_measured_;
+  const Rigid3d tform_measured_;
   const Eigen::Matrix6d sqrt_information_;
 };
 
