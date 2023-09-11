@@ -191,7 +191,7 @@ def parse_args():
         "--target_exposure",
         help="target exposure value in double",
         type=float,
-        default=0.001
+        default=0.001,
     )
 
     # Run COLMAP Sparse reconstruction
@@ -260,7 +260,7 @@ def parse_args():
         "--max_num_weak_area_revisit",
         help="the maxinum number of weak area revists",
         type=int,
-        default=2
+        default=2,
     )
     group.add_argument(
         "--re_max_num_images",
@@ -332,7 +332,7 @@ def parse_args():
         "--pose_prior_path", help="path to pose priors", type=str, default=""
     )
     group.add_argument(
-        "--T_camera_to_prior",
+        "--prior_from_cam",
         help="transform from camera to prior if using pose prior in reconstruction",
         type=str,
         default="1, 0, 0, 0, 0, 0, 0",
@@ -350,14 +350,14 @@ def parse_args():
         default="0.1, 0.1, 0.1, 0.1, 0.1, 0.1",
     )
     group.add_argument(
-        "--ba_refine_camera_to_prior",
-        help="whether to optimize T_camera_to_prior during bundle adjustment",
+        "--ba_refine_prior_from_cam",
+        help="whether to optimize prior_from_cam during bundle adjustment",
         action="store_true",
         default=False,
     )
     group.add_argument(
-        "--ba_refine_camera_to_prior_after_num_images",
-        help="refine T_camera_to_prior after registering a certain number of images",
+        "--ba_refine_prior_from_cam_after_num_images",
+        help="refine prior_from_cam after registering a certain number of images",
         type=int,
         default=800,
     )
@@ -492,11 +492,13 @@ class COLMAPOpenMVSPipeline:
         self.use_pose_prior: bool = args.use_pose_prior
         self.pose_prior_path: str = args.pose_prior_path
         self.have_pose_prior: bool = not args.pose_prior_path == ""
-        self.T_c2p: str = args.T_camera_to_prior
+        self.prior_from_cam: str = args.prior_from_cam
         self.ba_use_global_pose_prior_std: bool = not args.not_use_global_pose_prior_std
         self.ba_pose_prior_std: str = args.ba_pose_prior_std
-        self.refine_T_c2p: bool = args.ba_refine_camera_to_prior
-        self.refine_T_c2p_after: int = args.ba_refine_camera_to_prior_after_num_images
+        self.refine_prior_from_cam: bool = args.ba_refine_prior_from_cam
+        self.refine_prior_from_cam_after: int = (
+            args.ba_refine_prior_from_cam_after_num_images
+        )
         self.refine_intrin_after: int = args.ba_refine_intrin_after_num_images
         self.write_snapshot: bool = args.write_snapshot
         self.snapshot_images_freq: int = args.snapshot_images_freq
@@ -587,7 +589,7 @@ class COLMAPOpenMVSPipeline:
             "--TargetExposure",
             f"{self.target_exposure}",
             "--Scatter",
-            (self.image_path.parent / "backscatter.png").as_posix()
+            (self.image_path.parent / "backscatter.png").as_posix(),
         ]
 
         print_heading1("Running OMV CUDA color normalization")
@@ -768,19 +770,19 @@ class COLMAPOpenMVSPipeline:
             mapper_cmds += [
                 "--Mapper.use_pose_prior",
                 "1",
-                "--Mapper.T_camera_to_prior",
-                self.T_c2p,
+                "--Mapper.prior_from_cam",
+                self.prior_from_cam,
                 "--Mapper.ba_use_global_pose_prior_std",
                 f"{self.ba_use_global_pose_prior_std}",
                 "--Mapper.ba_pose_prior_std",
                 self.ba_pose_prior_std,
             ]
-            if self.refine_T_c2p:
+            if self.refine_prior_from_cam:
                 mapper_cmds += [
-                    "--Mapper.ba_refine_camera_to_prior",
+                    "--Mapper.ba_refine_prior_from_cam",
                     "1",
-                    "--Mapper.ba_refine_camera_to_prior_after_num_images",
-                    f"{self.refine_T_c2p_after}",
+                    "--Mapper.ba_refine_prior_from_cam_after_num_images",
+                    f"{self.refine_prior_from_cam_after}",
                 ]
 
         if self.write_snapshot and not self.hybrid_mapper:
@@ -811,7 +813,7 @@ class COLMAPOpenMVSPipeline:
                 "--split_params",
                 self.split_params,
                 "--overlap_ratio",
-                "0.2"
+                "0.2",
             ]
             print_heading1("Running model splitter")
             exec_cmd(split_cmds)
@@ -833,7 +835,7 @@ class COLMAPOpenMVSPipeline:
                     "--min_scale",
                     "0.8",
                     "--max_scale",
-                    "1.2"
+                    "1.2",
                 ]
                 print_heading1(f"Run image undistortion for chunk {chunk.name}")
                 exec_cmd(undistort_cmds)
@@ -858,7 +860,7 @@ class COLMAPOpenMVSPipeline:
                 "--min_scale",
                 "0.8",
                 "--max_scale",
-                "1.2"
+                "1.2",
             ]
             print_heading1("Running image undistortion for chunk 0")
             exec_cmd(undistort_cmds)

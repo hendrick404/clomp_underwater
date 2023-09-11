@@ -652,12 +652,21 @@ class SpatialFeatureMatcher : public Thread {
         location_matrix(num_locations, 1) = static_cast<float>(xyzs[0](1));
         location_matrix(num_locations, 2) = static_cast<float>(xyzs[0](2));
       } else {
+        const bool has_rotation_prior = image.CamFromWorldPrior()
+                                            .rotation.coeffs()
+                                            .array()
+                                            .isFinite()
+                                            .all();
+        const Eigen::Vector3d position_prior =
+            has_rotation_prior ? image.CamFromWorldPrior().rotation *
+                                     -image.CamFromWorldPrior().translation
+                               : translation_prior;
         location_matrix(num_locations, 0) =
-            static_cast<float>(translation_prior(0));
+            static_cast<float>(position_prior(0));
         location_matrix(num_locations, 1) =
-            static_cast<float>(translation_prior(1));
+            static_cast<float>(position_prior(1));
         location_matrix(num_locations, 2) =
-            static_cast<float>(options_.ignore_z ? 0 : translation_prior(2));
+            static_cast<float>(options_.ignore_z ? 0 : position_prior(2));
       }
 
       num_locations += 1;

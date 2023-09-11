@@ -124,6 +124,8 @@ class ModelViewerWidget : public QOpenGLWidget,
   std::unordered_map<point3D_t, Point3D> points3D;
   std::vector<image_t> reg_image_ids;
 
+  Rigid3d prior_from_cam_;
+
   QLabel* statusbar_status_label;
 
  protected:
@@ -147,6 +149,7 @@ class ModelViewerWidget : public QOpenGLWidget,
   void UploadImageData(bool selection_mode = false);
   void UploadImageConnectionData();
   void UploadMovieGrabberData();
+  void UploadPosePriorData(const bool selection_mode = false);
 
   void ComposeProjectionMatrix();
 
@@ -174,6 +177,9 @@ class ModelViewerWidget : public QOpenGLWidget,
   LinePainter movie_grabber_path_painter_;
   LinePainter movie_grabber_line_painter_;
   TrianglePainter movie_grabber_triangle_painter_;
+
+  LinePainter pose_prior_image_line_painter_;
+  TrianglePainter pose_prior_image_triangle_painter_;
 
   PointViewerWidget* point_viewer_widget_;
   DatabaseImageViewerWidget* image_viewer_widget_;
