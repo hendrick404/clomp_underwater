@@ -31,27 +31,11 @@
 
 #include "colmap/geometry/sim3.h"
 
-#include "colmap/estimators/similarity_transform.h"
-#include "colmap/geometry/pose.h"
-#include "colmap/scene/projection.h"
+#include "colmap/util/logging.h"
 
 #include <fstream>
 
 namespace colmap {
-
-bool Sim3d::Estimate(const std::vector<Eigen::Vector3d>& src,
-                     const std::vector<Eigen::Vector3d>& tgt) {
-  const auto results =
-      SimilarityTransformEstimator<3, true>().Estimate(src, tgt);
-  if (results.empty()) {
-    return false;
-  }
-  CHECK_EQ(results.size(), 1);
-  scale = results[0].col(0).norm();
-  rotation = Eigen::Quaterniond(results[0].leftCols<3>() / scale).normalized();
-  translation = results[0].rightCols<1>();
-  return true;
-}
 
 void Sim3d::ToFile(const std::string& path) const {
   std::ofstream file(path, std::ios::trunc);

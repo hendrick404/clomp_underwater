@@ -35,6 +35,7 @@
 #include "colmap/controllers/bundle_adjustment.h"
 #include "colmap/controllers/hierarchical_mapper.h"
 #include "colmap/controllers/option_manager.h"
+#include "colmap/estimators/similarity_transform.h"
 #include "colmap/exe/gui.h"
 #include "colmap/scene/reconstruction.h"
 #include "colmap/util/misc.h"
@@ -282,8 +283,8 @@ int RunMapper(int argc, char** argv) {
             reconstruction->Image(image_id).ProjectionCenter());
       }
       Sim3d orig_from_new;
-      orig_from_new.Estimate(new_fixed_image_positions,
-                             orig_fixed_image_positions);
+      EstimateSim3d(
+          new_fixed_image_positions, orig_fixed_image_positions, orig_from_new);
       reconstruction->Transform(orig_from_new);
     }
 
@@ -374,6 +375,7 @@ int RunPointTriangulator(int argc, char** argv) {
   std::string input_path;
   std::string output_path;
   bool clear_points = false;
+  bool refine_intrinsics = false;
 
   OptionManager options;
   options.AddDatabaseOptions();
@@ -384,6 +386,10 @@ int RunPointTriangulator(int argc, char** argv) {
       "clear_points",
       &clear_points,
       "Whether to clear all existing points and observations");
+  options.AddDefaultOption("refine_intrinsics",
+                           &refine_intrinsics,
+                           "Whether to refine the intrinsics of the cameras "
+                           "(fixing the principal point)");
   options.AddMapperOptions();
   options.Parse(argc, argv);
 
@@ -407,7 +413,8 @@ int RunPointTriangulator(int argc, char** argv) {
                                   *options.image_path,
                                   output_path,
                                   *options.mapper,
-                                  clear_points);
+                                  clear_points,
+                                  refine_intrinsics);
 }
 
 int RunPointTriangulatorImpl(
@@ -416,7 +423,8 @@ int RunPointTriangulatorImpl(
     const std::string& image_path,
     const std::string& output_path,
     const IncrementalMapperOptions& mapper_options,
-    const bool clear_points) {
+    const bool clear_points,
+    const bool refine_intrinsics) {
   PrintHeading1("Loading database");
 
   std::shared_ptr<DatabaseCache> database_cache;
@@ -488,9 +496,9 @@ int RunPointTriangulatorImpl(
   //////////////////////////////////////////////////////////////////////////////
 
   auto ba_options = mapper_options.GlobalBundleAdjustment();
-  ba_options.refine_focal_length = false;
+  ba_options.refine_focal_length = refine_intrinsics;
   ba_options.refine_principal_point = false;
-  ba_options.refine_extra_params = false;
+  ba_options.refine_extra_params = refine_intrinsics;
   ba_options.refine_extrinsics = false;
 
   // Configure bundle adjustment.

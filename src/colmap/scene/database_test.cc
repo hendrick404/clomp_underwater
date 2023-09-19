@@ -39,6 +39,7 @@
 #include <gtest/gtest.h>
 
 namespace colmap {
+namespace {
 
 TEST(Database, OpenCloseConstructorDestructor) {
   Database database(Database::kInMemoryDatabasePath);
@@ -477,4 +478,5 @@ TEST(Database, Merge) {
   EXPECT_EQ(merged_database.NumMatches(), 0);
 }
 
+}  // namespace
 }  // namespace colmap

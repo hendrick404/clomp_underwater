@@ -37,6 +37,7 @@
 #include <gtest/gtest.h>
 
 namespace colmap {
+namespace {
 
 TEST(Camera, Empty) {
   Camera camera;
@@ -446,4 +447,5 @@ TEST(Camera, Rescale) {
   EXPECT_EQ(camera.PrincipalPointY(), 2);
 }
 
+}  // namespace
 }  // namespace colmap

@@ -48,6 +48,7 @@ COLMAP_ADD_LIBRARY(
         generalized_relative_pose.h generalized_relative_pose.cc
         homography_matrix.h homography_matrix.cc
         pose.h pose.cc
+        generalized_pose.h generalized_pose.cc
         similarity_transform.h
         translation_transform.h
         triangulation.h triangulation.cc
@@ -61,6 +62,7 @@ COLMAP_ADD_LIBRARY(
         colmap_sensor
         colmap_image
         colmap_scene
+        colmap_optim
         Eigen3::Eigen
         Ceres::ceres
 )
@@ -73,6 +75,11 @@ COLMAP_ADD_TEST(
 COLMAP_ADD_TEST(
     NAME affine_transform_test
     SRCS affine_transform_test.cc
+    LINK_LIBS colmap_estimators
+)
+COLMAP_ADD_TEST(
+    NAME alignment_test
+    SRCS alignment_test.cc
     LINK_LIBS colmap_estimators
 )
 COLMAP_ADD_TEST(
@@ -111,6 +118,11 @@ COLMAP_ADD_TEST(
     LINK_LIBS colmap_estimators
 )
 COLMAP_ADD_TEST(
+    NAME generalized_pose_test
+    SRCS generalized_pose_test.cc
+    LINK_LIBS colmap_estimators
+)
+COLMAP_ADD_TEST(
     NAME generalized_relative_pose_test
     SRCS generalized_relative_pose_test.cc
     LINK_LIBS colmap_estimators
@@ -123,6 +135,11 @@ COLMAP_ADD_TEST(
 COLMAP_ADD_TEST(
     NAME pose_test
     SRCS pose_test.cc
+    LINK_LIBS colmap_estimators
+)
+COLMAP_ADD_TEST(
+    NAME similarity_transform_test
+    SRCS similarity_transform_test.cc
     LINK_LIBS colmap_estimators
 )
 COLMAP_ADD_TEST(

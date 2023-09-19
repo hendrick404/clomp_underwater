@@ -34,6 +34,7 @@
 #include <gtest/gtest.h>
 
 namespace colmap {
+namespace {
 
 template <typename CameraModel>
 void TestCamToCamFromImg(const std::vector<double>& params,
@@ -233,4 +234,5 @@ TEST(MetashapeFisheye, Nominal) {
                                           0.02});
 }
 
+}  // namespace
 }  // namespace colmap
