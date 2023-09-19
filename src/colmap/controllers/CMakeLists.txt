@@ -43,6 +43,7 @@ COLMAP_ADD_LIBRARY(
         image_reader.h image_reader.cc
         incremental_mapper.h incremental_mapper.cc
         option_manager.h option_manager.cc
+        hybrid_mapper.h hybrid_mapper.cc
     PUBLIC_LINK_LIBS
         colmap_scene
         colmap_util

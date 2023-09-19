@@ -34,6 +34,7 @@
 #include "colmap/controllers/automatic_reconstruction.h"
 #include "colmap/controllers/bundle_adjustment.h"
 #include "colmap/controllers/hierarchical_mapper.h"
+#include "colmap/controllers/hybrid_mapper.h"
 #include "colmap/controllers/option_manager.h"
 #include "colmap/estimators/similarity_transform.h"
 #include "colmap/exe/gui.h"
@@ -764,6 +765,59 @@ int RunRigBundleAdjuster(int argc, char** argv) {
   CHECK(bundle_adjuster.Solve(&reconstruction, &camera_rigs));
 
   reconstruction.Write(output_path);
+
+  return EXIT_SUCCESS;
+}
+
+int RunHybridMapper(int argc, char** argv) {
+  HybridMapperController::Options hybrid_options;
+  SceneClustering::Options clustering_options;
+  std::string output_path;
+
+  OptionManager options;
+
+  options.AddDatabaseOptions();
+  options.AddImageOptions();
+  options.AddRequiredOption("output_path", &output_path);
+  options.AddDefaultOption("image_overlap", &clustering_options.image_overlap);
+  options.AddDefaultOption("leaf_max_num_images",
+                           &clustering_options.leaf_max_num_images);
+  options.AddDefaultOption("num_workers", &hybrid_options.num_workers);
+  options.AddDefaultOption("max_num_weak_area_revisit",
+                           &hybrid_options.max_num_weak_area_revisit);
+  options.AddDefaultOption("re_max_num_images",
+                           &hybrid_options.re_max_num_images);
+  options.AddDefaultOption("re_max_distance", &hybrid_options.re_max_distance);
+  options.AddDefaultOption("pgo_rel_pose_multi",
+                           &hybrid_options.pgo_rel_pose_multi);
+  options.AddDefaultOption("pgo_abs_pose_multi",
+                           &hybrid_options.pgo_abs_pose_multi);
+  options.AddDefaultOption("pgo_smooth_multi",
+                           &hybrid_options.pgo_smooth_multi);
+  options.AddMapperOptions();
+  options.Parse(argc, argv);
+
+  hybrid_options.image_path = *options.image_path;
+  hybrid_options.database_path = *options.database_path;
+  if (!ExistsDir(output_path)) {
+    std::cerr << "ERROR: `output_path` is not a directory." << std::endl;
+    return EXIT_FAILURE;
+  }
+  ReconstructionManager reconstruction_manager;
+
+  HybridMapperController hybrid_mapper(hybrid_options,
+                                       clustering_options,
+                                       *options.mapper,
+                                       &reconstruction_manager);
+  hybrid_mapper.Start();
+  hybrid_mapper.Wait();
+
+  if (reconstruction_manager.Size() == 0) {
+    std::cerr << "ERROR: failed to create sparse model" << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  reconstruction_manager.Write(output_path, &options);
 
   return EXIT_SUCCESS;
 }
