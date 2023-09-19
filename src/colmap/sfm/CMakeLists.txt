@@ -36,6 +36,7 @@ COLMAP_ADD_LIBRARY(
     SRCS
         incremental_mapper.h incremental_mapper.cc
         incremental_triangulator.h incremental_triangulator.cc
+        #hybrid_mapper.h hybrid_mapper.cc
     PUBLIC_LINK_LIBS
         colmap_scene
         colmap_estimators

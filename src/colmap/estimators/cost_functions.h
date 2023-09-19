@@ -361,10 +361,9 @@ class AbsolutePoseErrorCostFunction {
                   T* residuals) const {
     // Compute the relative transform from the estimated tform to the measured
     // tform.
-    const Eigen::Quaternion<T> rotation_estimated_inv =
-        EigenQuaternionMap<T>(rotation_estimated).inverse();
     const Eigen::Quaternion<T> measured_from_estimated_rotation =
-        tform_measured_.rotation.cast<T>() * rotation_estimated_inv;
+        tform_measured_.rotation.cast<T>() *
+        EigenQuaternionMap<T>(rotation_estimated).inverse();
     const Eigen::Matrix<T, 3, 1> measured_from_estimated_translation =
         tform_measured_.translation.cast<T>() -
         measured_from_estimated_rotation *
@@ -428,10 +427,9 @@ class AbsolutePoseErrorWithRelTformCostFunction {
 
     // Compute the relative transform from the estimated tform to the measured
     // tform.
-    const Eigen::Quaternion<T> rotation_target_estimated_inv =
-        rotation_target_estimated.inverse();
     const Eigen::Quaternion<T> measured_from_estimated_rotation =
-        tform_measured_.rotation.cast<T>() * rotation_target_estimated_inv;
+        tform_measured_.rotation.cast<T>() *
+        rotation_target_estimated.inverse();
     const Eigen::Matrix<T, 3, 1> measured_from_estimated_translation =
         tform_measured_.translation.cast<T>() -
         measured_from_estimated_rotation * translation_target_estimated;
@@ -450,6 +448,119 @@ class AbsolutePoseErrorWithRelTformCostFunction {
 
  private:
   const Rigid3d tform_measured_;
+  const Eigen::Matrix6d sqrt_information_;
+};
+
+// Cost function for relative pose in 6-DOFs. Given the measured relative pose
+// from a to b, this cost function optimizes pose a and pose b to minimize the
+// relative pose error.
+//
+// @param qvec12, tvec12    Transformation from pose 1 to pose 2
+class RelativePoseError6DoFCostFunction {
+ public:
+  RelativePoseError6DoFCostFunction(const Rigid3d& b_from_a_measured,
+                                    const Eigen::Matrix6d& sqrt_information)
+      : b_from_a_measured_(b_from_a_measured),
+        sqrt_information_(sqrt_information) {}
+
+  static ceres::CostFunction* Create(const Rigid3d& b_from_a_measured,
+                                     const Eigen::Matrix6d& sqrt_information) {
+    return new ceres::
+        AutoDiffCostFunction<RelativePoseError6DoFCostFunction, 6, 4, 3, 4, 3>(
+            new RelativePoseError6DoFCostFunction(b_from_a_measured,
+                                                  sqrt_information));
+  }
+
+  template <typename T>
+  bool operator()(const T* const a_from_world_rotation,
+                  const T* const a_from_world_translation,
+                  const T* const b_from_world_rotation,
+                  const T* const b_from_world_translation,
+                  T* residuals) const {
+    // Compute estimated relative transform from a to b.
+
+    const Eigen::Quaternion<T> b_from_a_rotation =
+        EigenQuaternionMap<T>(b_from_world_rotation) *
+        EigenQuaternionMap<T>(a_from_world_rotation).inverse();
+    const Eigen::Matrix<T, 3, 1> b_from_a_translation =
+        EigenVector3Map<T>(b_from_world_translation) -
+        b_from_a_rotation * EigenVector3Map<T>(a_from_world_translation);
+
+    const Eigen::Quaternion<T> measured_from_estimated_rotation =
+        b_from_a_measured_.rotation.cast<T>() * b_from_a_rotation.inverse();
+    const Eigen::Matrix<T, 3, 1> measured_from_estimated_translation =
+        b_from_a_measured_.translation.cast<T>() -
+        measured_from_estimated_rotation * b_from_a_translation;
+
+    // Compute the residuals.
+    Eigen::Map<Eigen::Matrix<T, 6, 1>> residuals_map(residuals);
+    residuals_map.template block<3, 1>(0, 0) =
+        T(2.0) * measured_from_estimated_rotation.vec();
+    residuals_map.template block<3, 1>(3, 0) =
+        measured_from_estimated_translation;
+    // Scale the residuals by the measurement uncertainty.
+    residuals_map.applyOnTheLeft(sqrt_information_.cast<T>());
+
+    return true;
+  }
+
+ private:
+  const Rigid3d b_from_a_measured_;
+  const Eigen::Matrix6d sqrt_information_;
+};
+
+// Cost function for smooth motion constraint.
+class SmoothMotionCostFunction {
+ public:
+  SmoothMotionCostFunction(const Eigen::Matrix6d& sqrt_information)
+      : sqrt_information_(sqrt_information) {}
+
+  static ceres::CostFunction* Create(const Eigen::Matrix6d& sqrt_information) {
+    return new ceres::
+        AutoDiffCostFunction<SmoothMotionCostFunction, 6, 4, 3, 4, 3, 4, 3>(
+            new SmoothMotionCostFunction(sqrt_information));
+  }
+
+  template <typename T>
+  bool operator()(const T* const a_from_world_rotation,
+                  const T* const a_from_world_translation,
+                  const T* const b_from_world_rotation,
+                  const T* const b_from_world_translation,
+                  const T* const c_from_world_rotation,
+                  const T* const c_from_world_translation,
+                  T* residuals) const {
+    // Compute relative transform from a to b.
+    const Eigen::Quaternion<T> b_from_a_rotation =
+        EigenQuaternionMap<T>(b_from_world_rotation) *
+        EigenQuaternionMap<T>(a_from_world_rotation).inverse();
+    const Eigen::Matrix<T, 3, 1> b_from_a_translation =
+        EigenVector3Map<T>(b_from_world_translation) -
+        b_from_a_rotation * EigenVector3Map<T>(a_from_world_translation);
+    // Compute relative transfortransformmation from b to c.
+    const Eigen::Quaternion<T> c_from_b_rotation =
+        EigenQuaternionMap<T>(c_from_world_rotation) *
+        EigenQuaternionMap<T>(b_from_world_rotation).inverse();
+    const Eigen::Matrix<T, 3, 1> c_from_b_translation =
+        EigenVector3Map<T>(c_from_world_translation) -
+        c_from_b_rotation * EigenVector3Map<T>(b_from_world_translation);
+
+    // Compute residuals such that the relative transform from a to b
+    // should be similar to relative transform from b to c.
+    const Eigen::Quaternion<T> diff_rotation =
+        c_from_b_rotation * b_from_a_rotation.inverse();
+    const Eigen::Matrix<T, 3, 1> diff_translation =
+        c_from_b_translation - diff_rotation * b_from_a_translation;
+
+    Eigen::Map<Eigen::Matrix<T, 6, 1>> residuals_map(residuals);
+    residuals_map.template block<3, 1>(0, 0) = T(2.0) * diff_rotation.vec();
+    residuals_map.template block<3, 1>(3, 0) = diff_translation;
+    // Scale the residuals by the measurement uncertainty.
+    residuals_map.applyOnTheLeft(sqrt_information_.cast<T>());
+
+    return true;
+  }
+
+ private:
   const Eigen::Matrix6d sqrt_information_;
 };
 
