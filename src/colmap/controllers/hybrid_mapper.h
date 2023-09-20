@@ -2,6 +2,7 @@
 
 #include "colmap/controllers/incremental_mapper.h"
 #include "colmap/scene/scene_clustering.h"
+#include "colmap/sfm/hybrid_mapper.h"
 #include "colmap/util/threading.h"
 
 namespace colmap {
@@ -45,7 +46,7 @@ class HybridMapperController : public Thread {
     // Options used to reconstruction each cluster individually.
     IncrementalMapperOptions incremental_options;
 
-    // HybridMapper::Options Mapper() const;
+    HybridMapper::Options Mapper() const;
 
     bool Check() const;
   };

@@ -67,6 +67,17 @@ void IterativeGlobalRefinement(const IncrementalMapperOptions& options,
 
 }  // namespace
 
+HybridMapper::Options HybridMapperController::Options::Mapper() const {
+  HybridMapper::Options options;
+  options.num_workers = num_workers;
+  options.re_max_num_images = re_max_num_images;
+  options.re_max_distance = re_max_distance;
+  options.pgo_rel_pose_multi = pgo_rel_pose_multi;
+  options.pgo_abs_pose_multi = pgo_abs_pose_multi;
+  options.pgo_smooth_multi = pgo_smooth_multi;
+  return options;
+}
+
 bool HybridMapperController::Options::Check() const {
   CHECK_OPTION_GE(num_workers, -1);
   CHECK_OPTION_GE(max_num_weak_area_revisit, 0);
@@ -95,18 +106,47 @@ void HybridMapperController::Run() {
   }
 
   // Initialize a global reconstruction by the pose priors.
+  PrintHeading1("Initialize global reconstruction");
+
+  // Create a temporary global reconstruction and register all images as their
+  // pose priors.
+  std::shared_ptr<Reconstruction> global_recon;
+  // Set prior_from_cam if pose prior is used in reconstruction.
+  if (mapper_options_->use_pose_prior &&
+      !mapper_options_->prior_from_cam.empty()) {
+    const std::vector<double> params =
+        CSVToVector<double>(mapper_options_->prior_from_cam);
+    global_recon->PriorFromCam() =
+        Rigid3d(Eigen::Quaterniond(params[0], params[1], params[2], params[3])
+                    .normalized(),
+                Eigen::Vector3d(params[4], params[5], params[6]));
+  }
+  HybridMapper hybrid_mapper(mapper_options_,
+                             database_cache_,
+                             options_.database_path,
+                             options_.image_path);
+  hybrid_mapper.BeginReconstruction(global_recon);
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Cluster scene
+  //////////////////////////////////////////////////////////////////////////////
+
+  hybrid_mapper.PartitionScene(clustering_options_);
 }
 
 bool HybridMapperController::LoadDatabase() {
   PrintHeading1("Loading database");
 
   std::unordered_set<std::string> image_names;
-  Database database(database_path_);
+  Database database(options_.database_path);
   Timer timer;
   timer.Start();
-  const size_t min_num_matches = static_cast<size_t>(options_->min_num_matches);
-  database_cache_ = DatabaseCache::Create(
-      database, min_num_matches, options_->ignore_watermarks, image_names);
+  const size_t min_num_matches =
+      static_cast<size_t>(mapper_options_->min_num_matches);
+  database_cache_ = DatabaseCache::Create(database,
+                                          min_num_matches,
+                                          mapper_options_->ignore_watermarks,
+                                          image_names);
   std::cout << std::endl;
   timer.PrintMinutes();
 
