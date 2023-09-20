@@ -132,6 +132,21 @@ void HybridMapperController::Run() {
   //////////////////////////////////////////////////////////////////////////////
 
   hybrid_mapper.PartitionScene(clustering_options_);
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Reconstruct clusters
+  //////////////////////////////////////////////////////////////////////////////
+
+  PrintHeading1("Reconstructing clusters");
+  hybrid_mapper.ReconstructClusters(options_.Mapper());
+
+  for (size_t i = 0; i < options_.max_num_weak_area_revisit; i++) {
+    PrintHeading1("Reconstructing weak areas");
+    hybrid_mapper.ReconstructWeakArea(options_.Mapper());
+  }
+
+  std::cout << std::endl;
+  GetTimer().PrintMinutes();
 }
 
 bool HybridMapperController::LoadDatabase() {

@@ -46,11 +46,28 @@ class HybridMapper {
   // Cleanup the mapper after the current reconstruction is done.
   void EndReconstruction();
 
-  const std::shared_ptr<const Reconstruction>& GetReconstruction() const;
+  std::shared_ptr<const Reconstruction> GetReconstruction() const;
 
   void PartitionScene(const SceneClustering::Options& clustering_options);
 
+  void ExtractViewGraphStats(
+      const std::vector<std::shared_ptr<const Reconstruction>>&
+          reconstructions);
+
+  void ReconstructClusters(const Options& options);
+
+  void ReconstructWeakArea(const Options& options);
+
  protected:
+  void ReconstructCluster(
+      std::shared_ptr<const IncrementalMapperOptions> incremental_options,
+      std::shared_ptr<ReconstructionManager> reconstruction_manager);
+
+  std::unordered_map<image_t, std::vector<image_t>> FindLocalAreas(
+      const std::unordered_set<image_t>& image_ids,
+      const size_t max_num_images,
+      const double max_distance) const;
+
   // Class that holds options for incremental mapping.
   const std::shared_ptr<const IncrementalMapperOptions> incremental_options_;
   // Class that holds all necessary data from database in memory.

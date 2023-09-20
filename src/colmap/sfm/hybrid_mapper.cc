@@ -69,8 +69,7 @@ void HybridMapper::EndReconstruction() {
   image_id_to_name_.clear();
 }
 
-const std::shared_ptr<const Reconstruction>& HybridMapper::GetReconstruction()
-    const {
+std::shared_ptr<const Reconstruction> HybridMapper::GetReconstruction() const {
   CHECK_NOTNULL(reconstruction_);
   return reconstruction_;
 }
@@ -81,13 +80,353 @@ void HybridMapper::PartitionScene(
 
   std::cout << "Reading images..." << std::endl;
   const auto images = database.ReadAllImages();
-  std::unordered_map<image_t, std::string> image_id_to_name;
-  image_id_to_name.reserve(images.size());
+  image_id_to_name_.reserve(images.size());
   for (const auto& image : images) {
-    image_id_to_name.emplace(image.ImageId(), image.Name());
+    image_id_to_name_.emplace(image.ImageId(), image.Name());
   }
 
   scene_clustering_ = std::make_unique<SceneClustering>(
       SceneClustering::Create(clustering_options, database));
 }
+
+void HybridMapper::ExtractViewGraphStats(
+    const std::vector<std::shared_ptr<const Reconstruction>>& reconstructions) {
+  // After reconstructing clusters, collect for new image pair stats.
+  std::shared_ptr<const CorrespondenceGraph> correspondence_graph =
+      database_cache_->CorrespondenceGraph();
+
+  for (const auto& recon : reconstructions) {
+    const std::vector<image_t>& reg_image_ids = recon->RegImageIds();
+
+    for (const image_t image_id : reg_image_ids) {
+      const Image& image = recon->Image(image_id);
+
+      num_registrations_[image_id]++;
+
+      for (point2D_t point2D_idx = 0; point2D_idx < image.NumPoints2D();
+           ++point2D_idx) {
+        if (image.Point2D(point2D_idx).HasPoint3D()) {
+          // Here is the same as `SetObservationAsTriangulated` in
+          // reconstruction.cc
+          const Point2D& point2D = image.Point2D(point2D_idx);
+
+          const auto corr_range =
+              correspondence_graph->FindCorrespondences(image_id, point2D_idx);
+          for (const auto* corr = corr_range.beg; corr < corr_range.end;
+               ++corr) {
+            if (!recon->ExistsImage(corr->image_id) ||
+                !recon->IsImageRegistered(corr->image_id)) {
+              continue;
+            }
+            const Image& corr_image = recon->Image(corr->image_id);
+            const Point2D& corr_point2D = corr_image.Point2D(corr->point2D_idx);
+            // Update number of shared 3D points between image pairs and make
+            // sure to
+            // only count the correspondences once (not twice forward and
+            // backward).
+            if (point2D.point3D_id == corr_point2D.point3D_id &&
+                image_id < corr->image_id) {
+              const image_pair_t pair_id =
+                  Database::ImagePairToPairId(image_id, corr->image_id);
+              if (upgraded_image_pair_stats_.count(pair_id) > 0) {
+                upgraded_image_pair_stats_.at(pair_id) += 1;
+              } else {
+                upgraded_image_pair_stats_.emplace(pair_id, 1);
+              }
+            }
+          }
+        }
+      }
+    }  // End for all images.
+
+  }  // End for all reconstructions.
+}
+
+void HybridMapper::ReconstructClusters(const Options& options) {
+  auto leaf_clusters = scene_clustering_->GetLeafClusters();
+
+  size_t total_num_images = 0;
+  for (size_t i = 0; i < leaf_clusters.size(); ++i) {
+    total_num_images += leaf_clusters[i]->image_ids.size();
+    std::cout << StringPrintf("  Cluster %d with %d images",
+                              i + 1,
+                              leaf_clusters[i]->image_ids.size())
+              << std::endl;
+  }
+
+  std::cout << StringPrintf("Clusters have %d images", total_num_images)
+            << std::endl;
+
+  // Determine the number of workers and threads per worker.
+  const int kMaxNumThreads = -1;
+  const int num_eff_threads = GetEffectiveNumThreads(kMaxNumThreads);
+  const int kDefaultNumWorkers = 8;
+  const int num_eff_workers =
+      options.num_workers < 1
+          ? std::min(static_cast<int>(leaf_clusters.size()),
+                     std::min(kDefaultNumWorkers, num_eff_threads))
+          : options.num_workers;
+  const int num_threads_per_worker =
+      std::max(1, num_eff_threads / num_eff_workers);
+
+  // Start reconstructing the bigger clusters first for better resource usage.
+  std::sort(leaf_clusters.begin(),
+            leaf_clusters.end(),
+            [](const SceneClustering::Cluster* cluster1,
+               const SceneClustering::Cluster* cluster2) {
+              return cluster1->image_ids.size() > cluster2->image_ids.size();
+            });
+
+  // Start the reconstruction workers. Use a separate reconstruction manager per
+  // thread to avoid race conditions.
+  reconstruction_managers_.reserve(leaf_clusters.size());
+
+  ThreadPool thread_pool(num_eff_workers);
+  for (const auto& cluster : leaf_clusters) {
+    reconstruction_managers_[cluster] =
+        std::make_shared<ReconstructionManager>();
+    auto incremental_options =
+        std::make_shared<IncrementalMapperOptions>(*incremental_options_.get());
+    incremental_options->multiple_models = true;
+    if (incremental_options->num_threads < 0) {
+      incremental_options->num_threads = num_threads_per_worker;
+    }
+
+    for (const auto image_id : cluster->image_ids) {
+      incremental_options->image_names.insert(image_id_to_name_.at(image_id));
+    }
+
+    thread_pool.AddTask(&HybridMapper::ReconstructCluster,
+                        this,
+                        incremental_options,
+                        reconstruction_managers_[cluster]);
+  }
+  thread_pool.Wait();
+
+  std::vector<std::shared_ptr<const Reconstruction>> sub_recons;
+  for (const auto& cluster_el : reconstruction_managers_) {
+    for (size_t i = 0; i < cluster_el.second->Size(); i++) {
+      sub_recons.push_back(cluster_el.second->Get(i));
+    }
+  }
+  ExtractViewGraphStats(sub_recons);
+}
+
+void HybridMapper::ReconstructWeakArea(const Options& options) {
+  // Collect for weakly reconstructed iamges.
+  std::unordered_set<image_t> weak_image_ids;
+  for (const auto& image : num_registrations_) {
+    if (image.second == 0) {
+      weak_image_ids.insert(image.first);
+    }
+  }
+
+  // Find image pairs who have sufficient amount of inlier correspondences,
+  // however not enough shared observations.
+  const size_t kMinNumMatchesAsWeak =
+      static_cast<size_t>(4.0 * incremental_options_->min_num_matches);
+  const double re_min_ratio =
+      incremental_options_->Triangulation().re_min_ratio;
+  for (const auto& image_pair : image_pair_stats_) {
+    size_t num_shared_observations = 0;
+    if (upgraded_image_pair_stats_.count(image_pair.first)) {
+      num_shared_observations = upgraded_image_pair_stats_.at(image_pair.first);
+    }
+    const double tri_ratio = static_cast<double>(num_shared_observations) /
+                             static_cast<double>(image_pair.second);
+    if (tri_ratio > re_min_ratio || image_pair.second < kMinNumMatchesAsWeak) {
+      continue;
+    }
+    image_t image_id1, image_id2;
+    Database::PairIdToImagePair(image_pair.first, &image_id1, &image_id2);
+    weak_image_ids.insert(image_id1);
+    weak_image_ids.insert(image_id2);
+  }
+
+  if (weak_image_ids.size() > 0) {
+    std::cout << "  => Identified ";
+    for (const image_t image_id : weak_image_ids) {
+      std::cout << " " << image_id;
+    }
+    std::cout << " as weak areas, and try to revisit these areas" << std::endl;
+  } else {
+    std::cout << "  => No weak area identified, continue reconstruction"
+              << std::endl;
+    return;
+  }
+
+  std::unordered_map<image_t, std::vector<image_t>> weak_area_clusters =
+      FindLocalAreas(
+          weak_image_ids, options.re_max_num_images, options.re_max_distance);
+
+  std::cout << "  => Searched " << weak_area_clusters.size()
+            << " clusters of images to revisit" << std::endl;
+
+  size_t wr_cnt = 0;
+  for (const auto& weak_area : weak_area_clusters) {
+    std::cout << "Weak area " << wr_cnt << ", center image " << weak_area.first
+              << ", contains images:";
+    for (size_t j = 0; j < weak_area.second.size(); j++) {
+      std::cout << " " << weak_area.second[j];
+    }
+    std::cout << std::endl;
+    wr_cnt++;
+  }
+
+  // Determine the number of workers and threads per worker.
+  const int kMaxNumThreads = -1;
+  const int num_eff_threads = GetEffectiveNumThreads(kMaxNumThreads);
+  const int kDefaultNumWorkers = 8;
+  const int num_eff_workers =
+      options.num_workers < 1
+          ? std::min(static_cast<int>(weak_area_clusters.size()),
+                     std::min(kDefaultNumWorkers, num_eff_threads))
+          : options.num_workers;
+  const int num_threads_per_worker =
+      std::max(1, num_eff_threads / num_eff_workers);
+
+  // Start the reconstruction workers. Use a separate reconstruction manager per
+  // thread to avoid race conditions.
+  std::unordered_map<image_t, std::shared_ptr<ReconstructionManager>>
+      weak_area_reconstructions;
+  weak_area_reconstructions.reserve(weak_area_clusters.size());
+
+  ThreadPool thread_pool(num_eff_workers);
+  for (const auto& cluster : weak_area_clusters) {
+    // Use the weak image id as one of the initial image pair.
+    weak_area_reconstructions[cluster.first] =
+        std::make_shared<ReconstructionManager>();
+    auto incremental_options =
+        std::make_shared<IncrementalMapperOptions>(*incremental_options_.get());
+    incremental_options->multiple_models = true;
+    incremental_options->min_model_size = 3;
+    incremental_options->init_image_id1 = cluster.first;
+    if (incremental_options->num_threads < 0) {
+      incremental_options->num_threads = num_threads_per_worker;
+    }
+
+    for (const auto image_id : cluster.second) {
+      incremental_options->image_names.insert(image_id_to_name_.at(image_id));
+    }
+
+    thread_pool.AddTask(&HybridMapper::ReconstructCluster,
+                        this,
+                        incremental_options,
+                        weak_area_reconstructions[cluster.first]);
+  }
+  thread_pool.Wait();
+
+  std::vector<std::shared_ptr<const Reconstruction>> sub_recons;
+  for (const auto& cluster_el : weak_area_reconstructions) {
+    for (size_t i = 0; i < cluster_el.second->Size(); i++) {
+      sub_recons.push_back(cluster_el.second->Get(i));
+    }
+  }
+  ExtractViewGraphStats(sub_recons);
+
+  // Save the reconstruction results.
+  for (auto& cluster : weak_area_reconstructions) {
+    weak_area_reconstructions_.emplace_back(std::move(cluster.second));
+  }
+  for (const auto& recons : weak_area_reconstructions_) {
+    for (size_t i = 0; i < recons->Size(); i++) {
+      std::shared_ptr<const Reconstruction> recon = recons->Get(i);
+      std::cout << "WR recon: " << i << " contains images:";
+      const std::vector<image_t>& reg_image_ids = recon->RegImageIds();
+      for (const auto& image_id : reg_image_ids) {
+        std::cout << " " << image_id;
+      }
+      std::cout << std::endl;
+    }
+  }
+}
+
+void HybridMapper::ReconstructCluster(
+    std::shared_ptr<const IncrementalMapperOptions> incremental_options,
+    std::shared_ptr<ReconstructionManager> reconstruction_manager) {
+  IncrementalMapperController mapper(std::move(incremental_options),
+                                     image_path_,
+                                     database_path_,
+                                     std::move(reconstruction_manager));
+  mapper.Start();
+  mapper.Wait();
+}
+
+std::unordered_map<image_t, std::vector<image_t>> HybridMapper::FindLocalAreas(
+    const std::unordered_set<image_t>& image_ids,
+    const size_t max_num_images,
+    const double max_distance) const {
+  const std::vector<image_t>& reg_image_ids = reconstruction_->RegImageIds();
+
+  struct ImageInfo {
+    image_t image_id;
+    double distance;
+  };
+
+  std::unordered_map<image_t, std::vector<ImageInfo>> local_image_infos;
+
+  for (const image_t image_id : image_ids) {
+    Eigen::Vector3d center_image_position =
+        reconstruction_->Image(image_id).ProjectionCenter();
+
+    std::vector<ImageInfo> local_images;
+
+    for (const image_t reg_image_id : reg_image_ids) {
+      if (reg_image_id == image_id) {
+        continue;
+      }
+
+      Eigen::Vector3d position =
+          reconstruction_->Image(reg_image_id).ProjectionCenter();
+      const double distance = (center_image_position - position).norm();
+      if (distance > max_distance) {
+        continue;
+      }
+
+      ImageInfo image_info;
+      image_info.image_id = reg_image_id;
+      image_info.distance = distance;
+      local_images.push_back(image_info);
+    }
+
+    local_image_infos.emplace(image_id, local_images);
+  }
+
+  // Creating clusters of images for each image id.
+  std::unordered_map<image_t, std::vector<image_t>> clusters;
+  std::unordered_set<image_t> total_images_to_be_reconstructed;
+
+  for (const image_t image_id : image_ids) {
+    if (total_images_to_be_reconstructed.count(image_id)) {
+      // This image will be revisited, no need to look for its local images.
+      continue;
+    }
+
+    std::vector<image_t> cluster;
+
+    total_images_to_be_reconstructed.insert(image_id);
+    cluster.push_back(image_id);
+
+    std::vector<ImageInfo>& local_images = local_image_infos.at(image_id);
+
+    std::sort(local_images.begin(),
+              local_images.end(),
+              [](const ImageInfo& image1, const ImageInfo& image2) {
+                return image1.distance < image2.distance;
+              });
+
+    for (size_t i = 0; i < local_images.size(); i++) {
+      if (i >= max_num_images) {
+        break;
+      }
+      total_images_to_be_reconstructed.insert(local_images[i].image_id);
+      cluster.push_back(local_images[i].image_id);
+    }
+
+    clusters.emplace(std::make_pair(image_id, cluster));
+  }
+
+  return clusters;
+}
+
 }  // namespace colmap
