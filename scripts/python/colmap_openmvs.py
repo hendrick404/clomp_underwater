@@ -682,8 +682,6 @@ class COLMAPOpenMVSPipeline:
                 self.database_path.as_posix(),
                 "--SiftMatching.gpu_index",
                 f"{self.gpu_index}",
-                "--SiftMatching.multiple_models",
-                "0",
             ]
             if self.have_pose_prior:
                 matcher_cmds += [
