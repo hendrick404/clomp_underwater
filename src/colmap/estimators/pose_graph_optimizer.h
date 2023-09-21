@@ -13,7 +13,7 @@ namespace colmap {
 
 class PoseGraphOptimizer {
  public:
-  PoseGraphOptimizer(Reconstruction* reconstruction);
+  PoseGraphOptimizer(std::shared_ptr<Reconstruction> reconstruction);
 
   void AddAbsolutePose(image_t image_id,
                        const Rigid3d& tform_measured,
@@ -36,7 +36,7 @@ class PoseGraphOptimizer {
  protected:
   std::unique_ptr<ceres::Problem> problem_;
   ceres::Solver::Summary summary_;
-  Reconstruction* reconstruction_;
+  std::shared_ptr<Reconstruction> reconstruction_;
 };
 
 }  // namespace colmap

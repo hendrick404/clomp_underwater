@@ -409,14 +409,17 @@ bool AlignReconstructionsViaPoints(const Reconstruction& src_reconstruction,
 
 bool MergeReconstructions(const double max_reproj_error,
                           const Reconstruction& src_reconstruction,
-                          Reconstruction* tgt_reconstruction) {
+                          Reconstruction* tgt_reconstruction,
+                          bool align) {
   Sim3d tgt_from_src;
-  if (!AlignReconstructionsViaReprojections(src_reconstruction,
-                                            *tgt_reconstruction,
-                                            /*min_inlier_observations=*/0.3,
-                                            max_reproj_error,
-                                            &tgt_from_src)) {
-    return false;
+  if (align) {
+    if (!AlignReconstructionsViaReprojections(src_reconstruction,
+                                              *tgt_reconstruction,
+                                              /*min_inlier_observations=*/0.3,
+                                              max_reproj_error,
+                                              &tgt_from_src)) {
+      return false;
+    }
   }
 
   // Find common and missing images in the two reconstructions.

@@ -145,6 +145,57 @@ void HybridMapperController::Run() {
     hybrid_mapper.ReconstructWeakArea(options_.Mapper());
   }
 
+  PrintHeading1("Global pose graph optimization");
+  hybrid_mapper.GlobalPoseGraphOptim(options_.Mapper());
+
+  PrintHeading1("Reconstruct inlier tracks");
+  hybrid_mapper.ReconstructInlierTracks(options_.Mapper());
+
+  PrintHeading1("Print view graph stats");
+  hybrid_mapper.PrintViewGraphStats();
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Bundle adjustment
+  //////////////////////////////////////////////////////////////////////////////
+
+  PrintHeading1("Final global bundle adjustment");
+
+  // This TearDown is necessary as it cleans up the image pair stats and so on
+  // for later running incremental mapper on the reconstruction.
+  global_recon->TearDown();
+
+  IncrementalMapper incremental_mapper(database_cache_);
+  incremental_mapper.BeginReconstruction(global_recon);
+
+  FilterPoints(*mapper_options_, &incremental_mapper);
+
+  IterativeGlobalRefinement(*mapper_options_, &incremental_mapper);
+
+  if (mapper_options_->extract_colors) {
+    PrintHeading1("Extracting color");
+    global_recon->ExtractColorsForAllImages(options_.image_path);
+  }
+
+  hybrid_mapper.EndReconstruction();
+
+  reconstruction_manager_->Get(reconstruction_manager_->Add()) = global_recon;
+
+  // Debug, export the merged reconstruction.
+  // auto& reconstruction_managers = hybrid_mapper.GetReconstructionManagers();
+  // CHECK_EQ(reconstruction_managers.size(), 1);
+  // *reconstruction_manager_ =
+  // std::move(reconstruction_managers.begin()->second);
+
+  // Debug, output all clustered reconstructions
+  // auto& reconstruction_managers = hybrid_mapper.GetReconstructionManagers();
+  // for (const auto& cluster_el : reconstruction_managers) {
+  //   for (size_t i = 0; i < cluster_el.second.Size(); i++) {
+  //     const Reconstruction& recon = cluster_el.second.Get(i);
+  //     const size_t idx = reconstruction_manager_->Add();
+  //     reconstruction_manager_->Get(idx) = recon;
+  //   }
+  // }
+
   std::cout << std::endl;
   GetTimer().PrintMinutes();
 }

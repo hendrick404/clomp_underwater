@@ -58,6 +58,12 @@ class HybridMapper {
 
   void ReconstructWeakArea(const Options& options);
 
+  void GlobalPoseGraphOptim(const Options& options);
+
+  void ReconstructInlierTracks(const Options& options);
+
+  void PrintViewGraphStats() const;
+
  protected:
   void ReconstructCluster(
       std::shared_ptr<const IncrementalMapperOptions> incremental_options,
@@ -67,6 +73,15 @@ class HybridMapper {
       const std::unordered_set<image_t>& image_ids,
       const size_t max_num_images,
       const double max_distance) const;
+
+  void UpdateSubReconstructions();
+
+  void MergeClusters(const SceneClustering::Cluster& cluster);
+
+  void MergeClusters();
+
+  bool TriangulateTrack(const IncrementalTriangulator::Options& tri_options,
+                        const Track& track);
 
   // Class that holds options for incremental mapping.
   const std::shared_ptr<const IncrementalMapperOptions> incremental_options_;
