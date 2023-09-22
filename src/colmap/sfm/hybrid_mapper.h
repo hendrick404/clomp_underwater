@@ -91,6 +91,8 @@ class HybridMapper {
   const std::string database_path_;
   const std::string image_path_;
 
+  Database database_;
+
   // Class that holds data of the reconstruction.
   std::shared_ptr<Reconstruction> reconstruction_;
 

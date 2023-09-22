@@ -77,17 +77,17 @@ std::shared_ptr<const Reconstruction> HybridMapper::GetReconstruction() const {
 
 void HybridMapper::PartitionScene(
     const SceneClustering::Options& clustering_options) {
-  const Database database(database_path_);
-
+  database_.Open(database_path_);
   std::cout << "Reading images..." << std::endl;
-  const auto images = database.ReadAllImages();
+  const auto images = database_.ReadAllImages();
   image_id_to_name_.reserve(images.size());
   for (const auto& image : images) {
     image_id_to_name_.emplace(image.ImageId(), image.Name());
   }
 
   scene_clustering_ = std::make_unique<SceneClustering>(
-      SceneClustering::Create(clustering_options, database));
+      SceneClustering::Create(clustering_options, database_));
+  database_.Close();
 }
 
 void HybridMapper::ExtractViewGraphStats(
@@ -181,29 +181,35 @@ void HybridMapper::ReconstructClusters(const Options& options) {
   // Start the reconstruction workers. Use a separate reconstruction manager per
   // thread to avoid race conditions.
   reconstruction_managers_.reserve(leaf_clusters.size());
+  {
+    // I honestly don't know why, but having database opened during this
+    // multi-threaded reconstruction is helpful to reduce the chance of getting
+    // `database is locked error`. But this does not help to completely avoid
+    // it.
+    database_.Open(database_path_);
+    ThreadPool thread_pool(num_eff_workers);
+    for (const auto& cluster : leaf_clusters) {
+      reconstruction_managers_[cluster] =
+          std::make_shared<ReconstructionManager>();
+      auto incremental_options = std::make_shared<IncrementalMapperOptions>(
+          *incremental_options_.get());
+      incremental_options->multiple_models = true;
+      if (incremental_options->num_threads < 0) {
+        incremental_options->num_threads = num_threads_per_worker;
+      }
 
-  ThreadPool thread_pool(num_eff_workers);
-  for (const auto& cluster : leaf_clusters) {
-    reconstruction_managers_[cluster] =
-        std::make_shared<ReconstructionManager>();
-    auto incremental_options =
-        std::make_shared<IncrementalMapperOptions>(*incremental_options_.get());
-    incremental_options->multiple_models = true;
-    if (incremental_options->num_threads < 0) {
-      incremental_options->num_threads = num_threads_per_worker;
+      for (const auto image_id : cluster->image_ids) {
+        incremental_options->image_names.insert(image_id_to_name_.at(image_id));
+      }
+
+      thread_pool.AddTask(&HybridMapper::ReconstructCluster,
+                          this,
+                          incremental_options,
+                          reconstruction_managers_[cluster]);
     }
-
-    for (const auto image_id : cluster->image_ids) {
-      incremental_options->image_names.insert(image_id_to_name_.at(image_id));
-    }
-
-    thread_pool.AddTask(&HybridMapper::ReconstructCluster,
-                        this,
-                        incremental_options,
-                        reconstruction_managers_[cluster]);
+    thread_pool.Wait();
+    database_.Close();
   }
-  thread_pool.Wait();
-
   std::vector<std::shared_ptr<const Reconstruction>> sub_recons;
   for (const auto& cluster_el : reconstruction_managers_) {
     for (size_t i = 0; i < cluster_el.second->Size(); i++) {
@@ -292,31 +298,34 @@ void HybridMapper::ReconstructWeakArea(const Options& options) {
       weak_area_reconstructions;
   weak_area_reconstructions.reserve(weak_area_clusters.size());
 
-  ThreadPool thread_pool(num_eff_workers);
-  for (const auto& cluster : weak_area_clusters) {
-    // Use the weak image id as one of the initial image pair.
-    weak_area_reconstructions[cluster.first] =
-        std::make_shared<ReconstructionManager>();
-    auto incremental_options =
-        std::make_shared<IncrementalMapperOptions>(*incremental_options_.get());
-    incremental_options->multiple_models = true;
-    incremental_options->min_model_size = 3;
-    incremental_options->init_image_id1 = cluster.first;
-    if (incremental_options->num_threads < 0) {
-      incremental_options->num_threads = num_threads_per_worker;
-    }
+  {
+    database_.Open(database_path_);
+    ThreadPool thread_pool(num_eff_workers);
+    for (const auto& cluster : weak_area_clusters) {
+      // Use the weak image id as one of the initial image pair.
+      weak_area_reconstructions[cluster.first] =
+          std::make_shared<ReconstructionManager>();
+      auto incremental_options = std::make_shared<IncrementalMapperOptions>(
+          *incremental_options_.get());
+      incremental_options->multiple_models = true;
+      incremental_options->min_model_size = 3;
+      incremental_options->init_image_id1 = cluster.first;
+      if (incremental_options->num_threads < 0) {
+        incremental_options->num_threads = num_threads_per_worker;
+      }
 
-    for (const auto image_id : cluster.second) {
-      incremental_options->image_names.insert(image_id_to_name_.at(image_id));
-    }
+      for (const auto image_id : cluster.second) {
+        incremental_options->image_names.insert(image_id_to_name_.at(image_id));
+      }
 
-    thread_pool.AddTask(&HybridMapper::ReconstructCluster,
-                        this,
-                        incremental_options,
-                        weak_area_reconstructions[cluster.first]);
+      thread_pool.AddTask(&HybridMapper::ReconstructCluster,
+                          this,
+                          incremental_options,
+                          weak_area_reconstructions[cluster.first]);
+    }
+    thread_pool.Wait();
+    database_.Close();
   }
-  thread_pool.Wait();
-
   std::vector<std::shared_ptr<const Reconstruction>> sub_recons;
   for (const auto& cluster_el : weak_area_reconstructions) {
     for (size_t i = 0; i < cluster_el.second->Size(); i++) {

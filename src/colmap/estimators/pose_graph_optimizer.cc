@@ -7,9 +7,9 @@
 namespace colmap {
 
 PoseGraphOptimizer::PoseGraphOptimizer(
-    std::shared_ptr<Reconstruction> reconstruction)
-    : reconstruction_(std::move(reconstruction)) {
-  CHECK_NOTNULL(reconstruction);
+    const std::shared_ptr<Reconstruction>& reconstruction)
+    : reconstruction_(reconstruction) {
+  CHECK_NOTNULL(reconstruction_);
   CHECK(!problem_) << "Cannot use the same PoseGraphOptimizer multiple times";
 
   ceres::Problem::Options problem_options;

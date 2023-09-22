@@ -110,18 +110,20 @@ void HybridMapperController::Run() {
 
   // Create a temporary global reconstruction and register all images as their
   // pose priors.
-  std::shared_ptr<Reconstruction> global_recon;
+  std::shared_ptr<Reconstruction> global_recon =
+      std::make_shared<Reconstruction>();
   // Set prior_from_cam if pose prior is used in reconstruction.
-  if (mapper_options_->use_pose_prior &&
-      !mapper_options_->prior_from_cam.empty()) {
+  if (options_.incremental_options.use_pose_prior &&
+      !options_.incremental_options.prior_from_cam.empty()) {
     const std::vector<double> params =
-        CSVToVector<double>(mapper_options_->prior_from_cam);
+        CSVToVector<double>(options_.incremental_options.prior_from_cam);
     global_recon->PriorFromCam() =
         Rigid3d(Eigen::Quaterniond(params[0], params[1], params[2], params[3])
                     .normalized(),
                 Eigen::Vector3d(params[4], params[5], params[6]));
   }
-  HybridMapper hybrid_mapper(mapper_options_,
+  HybridMapper hybrid_mapper(std::make_shared<const IncrementalMapperOptions>(
+                                 options_.incremental_options),
                              database_cache_,
                              options_.database_path,
                              options_.image_path);
@@ -131,7 +133,7 @@ void HybridMapperController::Run() {
   // Cluster scene
   //////////////////////////////////////////////////////////////////////////////
 
-  hybrid_mapper.PartitionScene(clustering_options_);
+  hybrid_mapper.PartitionScene(options_.clustering_options);
 
   //////////////////////////////////////////////////////////////////////////////
   // Reconstruct clusters
@@ -167,11 +169,11 @@ void HybridMapperController::Run() {
   IncrementalMapper incremental_mapper(database_cache_);
   incremental_mapper.BeginReconstruction(global_recon);
 
-  FilterPoints(*mapper_options_, &incremental_mapper);
+  FilterPoints(options_.incremental_options, &incremental_mapper);
 
-  IterativeGlobalRefinement(*mapper_options_, &incremental_mapper);
+  IterativeGlobalRefinement(options_.incremental_options, &incremental_mapper);
 
-  if (mapper_options_->extract_colors) {
+  if (options_.incremental_options.extract_colors) {
     PrintHeading1("Extracting color");
     global_recon->ExtractColorsForAllImages(options_.image_path);
   }
@@ -208,11 +210,12 @@ bool HybridMapperController::LoadDatabase() {
   Timer timer;
   timer.Start();
   const size_t min_num_matches =
-      static_cast<size_t>(mapper_options_->min_num_matches);
-  database_cache_ = DatabaseCache::Create(database,
-                                          min_num_matches,
-                                          mapper_options_->ignore_watermarks,
-                                          image_names);
+      static_cast<size_t>(options_.incremental_options.min_num_matches);
+  database_cache_ =
+      DatabaseCache::Create(database,
+                            min_num_matches,
+                            options_.incremental_options.ignore_watermarks,
+                            image_names);
   std::cout << std::endl;
   timer.PrintMinutes();
 
