@@ -169,8 +169,6 @@ void HybridMapperController::Run() {
   IncrementalMapper incremental_mapper(database_cache_);
   incremental_mapper.BeginReconstruction(global_recon);
 
-  FilterPoints(options_.incremental_options, &incremental_mapper);
-
   IterativeGlobalRefinement(options_.incremental_options, &incremental_mapper);
 
   if (options_.incremental_options.extract_colors) {
