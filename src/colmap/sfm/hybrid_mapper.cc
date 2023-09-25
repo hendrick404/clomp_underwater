@@ -946,7 +946,11 @@ void HybridMapper::MergeClusters() {
   // similarity transformation to align them when merging.
   UpdateSubReconstructions();
 
+  std::cout << " => Merging clusters" << std::endl;
+
   MergeClusters(*scene_clustering_->GetRootCluster());
+
+  std::cout << " => Merging weak areas" << std::endl;
 
   // Also merge weak area reconstructions if there are any.
   std::shared_ptr<Reconstruction> merged_recon =
@@ -954,10 +958,20 @@ void HybridMapper::MergeClusters() {
   const double kMaxReprojError = 32.0;
   for (size_t i = 0; i < weak_area_reconstructions_.size(); i++) {
     for (size_t j = 0; j < weak_area_reconstructions_[i]->Size(); j++) {
+      const int num_reg_images_before = merged_recon->NumRegImages();
+      const int num_reg_images_wr =
+          weak_area_reconstructions_[i]->Get(j)->NumRegImages();
       MergeReconstructions(kMaxReprojError,
-                           *merged_recon,
-                           weak_area_reconstructions_[i]->Get(j).get(),
+                           *weak_area_reconstructions_[i]->Get(j),
+                           merged_recon.get(),
                            false);
+      std::cout
+          << StringPrintf(
+                 " => Merged weak area with %d and %d images into %d images",
+                 num_reg_images_wr,
+                 num_reg_images_before,
+                 merged_recon->NumRegImages())
+          << std::endl;
     }
   }
 }
