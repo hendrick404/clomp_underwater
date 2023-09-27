@@ -8,7 +8,7 @@ Ray3D::Ray3D()
 Ray3D::Ray3D(const Eigen::Vector3d& ori, const Eigen::Vector3d& dir)
     : ori(ori), dir(dir.normalized()) {}
 
-Eigen::Vector3d Ray3D::At(const double distance) {
+Eigen::Vector3d Ray3D::At(const double distance) const {
   return ori + dir * distance;
 }
 }  // namespace colmap

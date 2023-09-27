@@ -12,7 +12,7 @@ struct Ray3D {
   Ray3D();
   Ray3D(const Eigen::Vector3d& ori, const Eigen::Vector3d& dir);
 
-  Eigen::Vector3d At(double distance);
+  Eigen::Vector3d At(double distance) const;
 
   // The 3D position of the ray origion
   Eigen::Vector3d ori;
@@ -29,8 +29,10 @@ struct Ray3D {
 // interface towards the side of the outgoing ray.
 // @param: v is the incident ray and the refracted ray
 template <typename T>
-inline void ComputeRefraction(const Eigen::Matrix<T, 3, 1>& normal, const T n1,
-                              const T n2, Eigen::Matrix<T, 3, 1>* v);
+inline void ComputeRefraction(const Eigen::Matrix<T, 3, 1>& normal,
+                              const T n1,
+                              const T n2,
+                              Eigen::Matrix<T, 3, 1>* v);
 
 // Compute the intersection of a 3D sphere with a 3D ray
 //
@@ -42,7 +44,9 @@ template <typename T>
 inline int RaySphereIntersection(const Eigen::Matrix<T, 3, 1>& ray_ori,
                                  const Eigen::Matrix<T, 3, 1>& ray_dir,
                                  const Eigen::Matrix<T, 3, 1>& center,
-                                 const T r, T* dmin, T* dmax);
+                                 const T r,
+                                 T* dmin,
+                                 T* dmax);
 
 // Compute the intersection of a 3D sphere with a 3D ray
 //
@@ -53,7 +57,8 @@ template <typename T>
 inline bool RayPlaneIntersection(const Eigen::Matrix<T, 3, 1>& ray_ori,
                                  const Eigen::Matrix<T, 3, 1>& ray_dir,
                                  const Eigen::Matrix<T, 3, 1>& normal,
-                                 const T dist, T* d);
+                                 const T dist,
+                                 T* d);
 
 // Compute the shortest distance of a 3D point to a ray
 //
@@ -69,8 +74,10 @@ inline T PointToRayDistance(const Eigen::Matrix<T, 3, 1>& point,
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-inline void ComputeRefraction(const Eigen::Matrix<T, 3, 1>& normal, const T n1,
-                              const T n2, Eigen::Matrix<T, 3, 1>* v) {
+inline void ComputeRefraction(const Eigen::Matrix<T, 3, 1>& normal,
+                              const T n1,
+                              const T n2,
+                              Eigen::Matrix<T, 3, 1>* v) {
   if (n1 == n2) return;
 
   const T r = n1 / n2;
@@ -87,7 +94,9 @@ template <typename T>
 inline int RaySphereIntersection(const Eigen::Matrix<T, 3, 1>& ray_ori,
                                  const Eigen::Matrix<T, 3, 1>& ray_dir,
                                  const Eigen::Matrix<T, 3, 1>& center,
-                                 const T r, T* dmin, T* dmax) {
+                                 const T r,
+                                 T* dmin,
+                                 T* dmax) {
   const Eigen::Matrix<T, 3, 1> diff = center - ray_ori;
   const T t0 = diff.dot(ray_dir);
   const T d_squared = diff.dot(diff) - t0 * t0;
@@ -102,7 +111,8 @@ template <typename T>
 inline bool RayPlaneIntersection(const Eigen::Matrix<T, 3, 1>& ray_ori,
                                  const Eigen::Matrix<T, 3, 1>& ray_dir,
                                  const Eigen::Matrix<T, 3, 1>& normal,
-                                 const T dist, T* d) {
+                                 const T dist,
+                                 T* d) {
   const Eigen::Matrix<T, 3, 1> p0 = dist * normal;
   const T denom = ray_dir.dot(normal);
   if (ceres::abs(denom) < std::numeric_limits<T>::epsilon()) return false;
@@ -121,4 +131,3 @@ inline T PointToRayDistance(const Eigen::Matrix<T, 3, 1>& point,
 }
 
 }  // namespace colmap
-
