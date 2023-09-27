@@ -265,9 +265,9 @@ Image ReadImageRow(sqlite3_stmt* sql_stmt, int rc) {
   image.CamFromWorldPrior().translation.y() = ExtractDoubleColumnOrNaN(8);
   image.CamFromWorldPrior().translation.z() = ExtractDoubleColumnOrNaN(9);
 
-  image.CovCamFromWorldPrior() =
+  image.CamFromWorldPriorCov() =
       ReadStaticMatrixBlob<Eigen::Matrix7d>(sql_stmt, rc, 10);
-  image.CovCamFromWorldPrior().transposeInPlace();
+  image.CamFromWorldPriorCov().transposeInPlace();
 
   return image;
 }
@@ -727,9 +727,9 @@ image_t Database::WriteImage(const Image& image,
       sql_stmt_add_image_, 10, image.CamFromWorldPrior().translation.z()));
 
   // Transpose the matrices to obtain row-major data layout.
-  const Eigen::Matrix7d cov_cam_from_world_prior =
-      image.CovCamFromWorldPrior().transpose();
-  WriteStaticMatrixBlob(sql_stmt_add_image_, cov_cam_from_world_prior, 11);
+  const Eigen::Matrix7d cam_from_world_prior_cov =
+      image.CamFromWorldPriorCov().transpose();
+  WriteStaticMatrixBlob(sql_stmt_add_image_, cam_from_world_prior_cov, 11);
 
   SQLITE3_CALL(sqlite3_step(sql_stmt_add_image_));
   SQLITE3_CALL(sqlite3_reset(sql_stmt_add_image_));
@@ -894,9 +894,9 @@ void Database::UpdateImage(const Image& image) const {
   SQLITE3_CALL(sqlite3_bind_double(
       sql_stmt_update_image_, 9, image.CamFromWorldPrior().translation.z()));
 
-  const Eigen::Matrix7d cov_cam_from_world_prior =
-      image.CovCamFromWorldPrior().transpose();
-  WriteStaticMatrixBlob(sql_stmt_update_image_, cov_cam_from_world_prior, 10);
+  const Eigen::Matrix7d cam_from_world_prior_cov =
+      image.CamFromWorldPriorCov().transpose();
+  WriteStaticMatrixBlob(sql_stmt_update_image_, cam_from_world_prior_cov, 10);
 
   SQLITE3_CALL(sqlite3_bind_int64(sql_stmt_update_image_, 11, image.ImageId()));
 

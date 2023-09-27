@@ -162,8 +162,8 @@ class Image {
   Eigen::Vector3d ViewingDirection() const;
 
   // Access covariance of the world to camera pose prior.
-  inline const Eigen::Matrix7d& CovCamFromWorldPrior() const;
-  inline Eigen::Matrix7d& CovCamFromWorldPrior();
+  inline const Eigen::Matrix7d& CamFromWorldPriorCov() const;
+  inline Eigen::Matrix7d& CamFromWorldPriorCov();
 
   // The number of levels in the 3D point multi-resolution visibility pyramid.
   static const int kNumPoint3DVisibilityPyramidLevels;
@@ -205,7 +205,7 @@ class Image {
   Rigid3d cam_from_world_prior_;
 
   // Covariance matrix of the pose prior measured as world to prior.
-  Eigen::Matrix7d cov_cam_from_world_prior_;
+  Eigen::Matrix7d cam_from_world_prior_cov_;
 
   // All image points, including points that are not part of a 3D point track.
   std::vector<struct Point2D> points2D_;
@@ -295,12 +295,12 @@ bool Image::IsPoint3DVisible(const point2D_t point2D_idx) const {
   return num_correspondences_have_point3D_.at(point2D_idx) > 0;
 }
 
-const Eigen::Matrix7d& Image::CovCamFromWorldPrior() const {
-  return cov_cam_from_world_prior_;
+const Eigen::Matrix7d& Image::CamFromWorldPriorCov() const {
+  return cam_from_world_prior_cov_;
 }
 
-Eigen::Matrix7d& Image::CovCamFromWorldPrior() {
-  return cov_cam_from_world_prior_;
+Eigen::Matrix7d& Image::CamFromWorldPriorCov() {
+  return cam_from_world_prior_cov_;
 }
 
 }  // namespace colmap

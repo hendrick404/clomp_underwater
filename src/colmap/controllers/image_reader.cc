@@ -276,14 +276,14 @@ ImageReader::Status ImageReader::Next(Camera* camera,
       const std::string pose_prior_path =
           JoinPaths(options_.pose_prior_path, root + ".csv");
       Rigid3d prior_from_world;
-      Eigen::Matrix7d cov_prior_from_world;
+      Eigen::Matrix7d prior_from_world_cov;
       if (ExistsFile(pose_prior_path) &&
           !pose_prior_.Read(
-              pose_prior_path, &prior_from_world, &cov_prior_from_world)) {
+              pose_prior_path, &prior_from_world, &prior_from_world_cov)) {
         return Status::POSE_PRIOR_ERROR;
       }
       image->CamFromWorldPrior() = prior_from_world;
-      image->CovCamFromWorldPrior() = cov_prior_from_world;
+      image->CamFromWorldPriorCov() = prior_from_world_cov;
     } else {
       Eigen::Vector3d& translation_prior =
           image->CamFromWorldPrior().translation;

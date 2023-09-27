@@ -428,42 +428,42 @@ void BundleAdjuster::AddImageToProblem(const image_t image_id,
 
     Eigen::Matrix6d information = Eigen::Matrix6d::Identity();
 
-    if (image.CovCamFromWorldPrior().isZero() ||
+    if (image.CamFromWorldPriorCov().isZero() ||
         options_.use_global_pose_prior_std) {
       // Image does not have covariance for pose prior. Then create an
       // information matrix from user input.
-      Eigen::Matrix3d cov_rotation = Eigen::Matrix3d::Identity();
-      Eigen::Matrix3d cov_translation = Eigen::Matrix3d::Identity();
-      cov_rotation(0, 0) = std::pow(options_.pose_prior_std[0], 2);
-      cov_rotation(1, 1) = std::pow(options_.pose_prior_std[1], 2);
-      cov_rotation(2, 2) = std::pow(options_.pose_prior_std[2], 2);
-      cov_translation(0, 0) = std::pow(options_.pose_prior_std[3], 2);
-      cov_translation(1, 1) = std::pow(options_.pose_prior_std[4], 2);
-      cov_translation(2, 2) = std::pow(options_.pose_prior_std[5], 2);
-      information.block<3, 3>(0, 0) = cov_rotation.inverse();
-      information.block<3, 3>(3, 3) = cov_translation.inverse();
+      Eigen::Matrix3d rotation_cov = Eigen::Matrix3d::Identity();
+      Eigen::Matrix3d translation_cov = Eigen::Matrix3d::Identity();
+      rotation_cov(0, 0) = std::pow(options_.pose_prior_std[0], 2);
+      rotation_cov(1, 1) = std::pow(options_.pose_prior_std[1], 2);
+      rotation_cov(2, 2) = std::pow(options_.pose_prior_std[2], 2);
+      translation_cov(0, 0) = std::pow(options_.pose_prior_std[3], 2);
+      translation_cov(1, 1) = std::pow(options_.pose_prior_std[4], 2);
+      translation_cov(2, 2) = std::pow(options_.pose_prior_std[5], 2);
+      information.block<3, 3>(0, 0) = rotation_cov.inverse();
+      information.block<3, 3>(3, 3) = translation_cov.inverse();
     } else {
-      const Eigen::Matrix7d& cov_prior_from_world =
-          image.CovCamFromWorldPrior();
+      const Eigen::Matrix7d& prior_from_world_cov =
+          image.CamFromWorldPriorCov();
 
       if (options_.refine_prior_from_cam) {
         // If refine prior_from_cam transformation, then covariance matrix is
         // directly `prior from world`.
-        information = cov_prior_from_world.inverse().block<6, 6>(1, 1);
+        information = prior_from_world_cov.inverse().block<6, 6>(1, 1);
       } else {
-        Eigen::Matrix7d cov_cam_from_prior = Eigen::Matrix7d::Identity();
-        cov_cam_from_prior *= 1e-20;
+        Eigen::Matrix7d cam_from_prior_cov = Eigen::Matrix7d::Identity();
+        cam_from_prior_cov *= 1e-20;
 
         Rigid3d tform_dst;
-        Eigen::Matrix7d cov_cam_from_world_prior;
+        Eigen::Matrix7d cam_from_world_prior_cov;
         CovRigid3dTransform cov_tfrom;
         cov_tfrom.Transform(image.CamFromWorldPrior(),
-                            cov_prior_from_world,
+                            prior_from_world_cov,
                             cam_from_prior,
-                            cov_cam_from_prior,
+                            cam_from_prior_cov,
                             tform_dst,
-                            cov_cam_from_world_prior);
-        information = cov_cam_from_world_prior.inverse().block<6, 6>(1, 1);
+                            cam_from_world_prior_cov);
+        information = cam_from_world_prior_cov.inverse().block<6, 6>(1, 1);
       }
     }
 

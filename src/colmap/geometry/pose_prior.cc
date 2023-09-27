@@ -14,7 +14,7 @@ PosePrior::PosePrior() : lat0_(kNaN), lon0_(kNaN), depth0_(kNaN) {}
 
 bool PosePrior::Read(const std::string& path,
                      Rigid3d* prior_from_world,
-                     Eigen::Matrix7d* cov_prior_from_world) {
+                     Eigen::Matrix7d* prior_from_world_cov) {
   if (!ExistsFile(path)) {
     return false;
   }
@@ -152,7 +152,7 @@ bool PosePrior::Read(const std::string& path,
       Eigen::Quaterniond(EulerAnglesToRotationMatrix(roll, pitch, yaw));
   *prior_from_world = Inverse(world_from_prior);
 
-  cov_prior_from_world->setZero();
+  prior_from_world_cov->setZero();
 
   // Now read covariances if available.
   bool read_cov = true;
@@ -171,31 +171,31 @@ bool PosePrior::Read(const std::string& path,
     double roll_std = std::stold(csv_values.at(iter_roll_std).c_str());
 
     // Positional covariance.
-    Eigen::Matrix3d cov_trans_world_from_prior = Eigen::Matrix3d::Identity();
-    cov_trans_world_from_prior(0, 0) = std::pow(n_std, 2);
-    cov_trans_world_from_prior(1, 1) = std::pow(e_std, 2);
-    cov_trans_world_from_prior(2, 2) = std::pow(d_std, 2);
+    Eigen::Matrix3d trans_world_from_prior_cov = Eigen::Matrix3d::Identity();
+    trans_world_from_prior_cov(0, 0) = std::pow(n_std, 2);
+    trans_world_from_prior_cov(1, 1) = std::pow(e_std, 2);
+    trans_world_from_prior_cov(2, 2) = std::pow(d_std, 2);
 
     // Rotational covariance.
     Eigen::Vector3d euler(roll, pitch, yaw);
-    Eigen::Matrix3d cov_euler = Eigen::Matrix3d::Identity();
-    cov_euler(0, 0) = std::pow(roll_std, 2);
-    cov_euler(1, 1) = std::pow(pitch_std, 2);
-    cov_euler(2, 2) = std::pow(yaw_std, 2);
+    Eigen::Matrix3d euler_cov = Eigen::Matrix3d::Identity();
+    euler_cov(0, 0) = std::pow(roll_std, 2);
+    euler_cov(1, 1) = std::pow(pitch_std, 2);
+    euler_cov(2, 2) = std::pow(yaw_std, 2);
 
-    Eigen::Matrix4d cov_rot_world_from_prior;
+    Eigen::Matrix4d rot_world_from_prior_cov;
 
     CovEulerZYXToQuaternion cov_tform_euler2quat;
     if (!cov_tform_euler2quat.Transform(euler,
-                                        cov_euler,
+                                        euler_cov,
                                         world_from_prior.rotation,
-                                        cov_rot_world_from_prior)) {
-      cov_prior_from_world->setZero();
+                                        rot_world_from_prior_cov)) {
+      prior_from_world_cov->setZero();
 
     } else {
-      Eigen::Matrix7d cov_world_from_prior = Eigen::Matrix7d::Zero();
-      cov_world_from_prior.block<4, 4>(0, 0) = cov_rot_world_from_prior;
-      cov_world_from_prior.block<3, 3>(4, 4) = cov_trans_world_from_prior;
+      Eigen::Matrix7d world_from_prior_cov = Eigen::Matrix7d::Zero();
+      world_from_prior_cov.block<4, 4>(0, 0) = rot_world_from_prior_cov;
+      world_from_prior_cov.block<3, 3>(4, 4) = trans_world_from_prior_cov;
 
       // Now invert `world_from_prior` to `prior_from_world`.
 
@@ -205,10 +205,10 @@ bool PosePrior::Read(const std::string& path,
       Rigid3d tform_dst;
       Eigen::Matrix7d cov_dst;
       if (!cov_tform_invert_rigid3d.Transform(
-              world_from_prior, cov_world_from_prior, tform_dst, cov_dst)) {
-        cov_prior_from_world->setZero();
+              world_from_prior, world_from_prior_cov, tform_dst, cov_dst)) {
+        prior_from_world_cov->setZero();
       } else {
-        *cov_prior_from_world = cov_dst;
+        *prior_from_world_cov = cov_dst;
       }
     }
   }

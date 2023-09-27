@@ -54,7 +54,7 @@ Image::Image()
       num_visible_points3D_(0),
       cam_from_world_prior_(Eigen::Quaterniond(kNaN, kNaN, kNaN, kNaN),
                             Eigen::Vector3d(kNaN, kNaN, kNaN)),
-      cov_cam_from_world_prior_(Eigen::Matrix7d::Zero()) {}
+      cam_from_world_prior_cov_(Eigen::Matrix7d::Zero()) {}
 
 void Image::SetUp(const class Camera& camera) {
   CHECK_EQ(camera_id_, camera.CameraId());

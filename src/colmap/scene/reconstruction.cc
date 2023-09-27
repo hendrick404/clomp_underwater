@@ -88,8 +88,8 @@ void Reconstruction::Load(const DatabaseCache& database_cache) {
       // Set pose prior and covariance from images read by database even if they
       // don't exist.
       existing_image.CamFromWorldPrior() = image.second.CamFromWorldPrior();
-      existing_image.CovCamFromWorldPrior() =
-          image.second.CovCamFromWorldPrior();
+      existing_image.CamFromWorldPriorCov() =
+          image.second.CamFromWorldPriorCov();
     } else {
       AddImage(image.second);
     }
@@ -299,7 +299,7 @@ void Reconstruction::DeleteAllPoints2DAndPoints3D() {
     new_image.SetNumCorrespondences(image.second.NumCorrespondences());
     new_image.CamFromWorld() = image.second.CamFromWorld();
     new_image.CamFromWorldPrior() = image.second.CamFromWorldPrior();
-    new_image.CovCamFromWorldPrior() = image.second.CovCamFromWorldPrior();
+    new_image.CamFromWorldPriorCov() = image.second.CamFromWorldPriorCov();
     image.second = std::move(new_image);
   }
 }
