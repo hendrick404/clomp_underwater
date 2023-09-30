@@ -458,39 +458,41 @@ class AbsolutePoseErrorWithRelTformCostFunction {
 // @param qvec12, tvec12    Transformation from pose 1 to pose 2
 class RelativePoseError6DoFCostFunction {
  public:
-  RelativePoseError6DoFCostFunction(const Rigid3d& b_from_a_measured,
+  RelativePoseError6DoFCostFunction(const Rigid3d& cam2_from_cam1_measured,
                                     const Eigen::Matrix6d& sqrt_information)
-      : b_from_a_measured_(b_from_a_measured),
+      : cam2_from_cam1_measured_(cam2_from_cam1_measured),
         sqrt_information_(sqrt_information) {}
 
-  static ceres::CostFunction* Create(const Rigid3d& b_from_a_measured,
+  static ceres::CostFunction* Create(const Rigid3d& cam2_from_cam1_measured,
                                      const Eigen::Matrix6d& sqrt_information) {
     return new ceres::
         AutoDiffCostFunction<RelativePoseError6DoFCostFunction, 6, 4, 3, 4, 3>(
-            new RelativePoseError6DoFCostFunction(b_from_a_measured,
+            new RelativePoseError6DoFCostFunction(cam2_from_cam1_measured,
                                                   sqrt_information));
   }
 
   template <typename T>
-  bool operator()(const T* const a_from_world_rotation,
-                  const T* const a_from_world_translation,
-                  const T* const b_from_world_rotation,
-                  const T* const b_from_world_translation,
+  bool operator()(const T* const cam1_from_world_rotation,
+                  const T* const cam1_from_world_translation,
+                  const T* const cam2_from_world_rotation,
+                  const T* const cam2_from_world_translation,
                   T* residuals) const {
     // Compute estimated relative transform from a to b.
 
-    const Eigen::Quaternion<T> b_from_a_rotation =
-        EigenQuaternionMap<T>(b_from_world_rotation) *
-        EigenQuaternionMap<T>(a_from_world_rotation).inverse();
-    const Eigen::Matrix<T, 3, 1> b_from_a_translation =
-        EigenVector3Map<T>(b_from_world_translation) -
-        b_from_a_rotation * EigenVector3Map<T>(a_from_world_translation);
+    const Eigen::Quaternion<T> cam2_from_cam1_rotation =
+        EigenQuaternionMap<T>(cam2_from_world_rotation) *
+        EigenQuaternionMap<T>(cam1_from_world_rotation).inverse();
+    const Eigen::Matrix<T, 3, 1> cam2_from_cam1_translation =
+        EigenVector3Map<T>(cam2_from_world_translation) -
+        cam2_from_cam1_rotation *
+            EigenVector3Map<T>(cam1_from_world_translation);
 
     const Eigen::Quaternion<T> measured_from_estimated_rotation =
-        b_from_a_measured_.rotation.cast<T>() * b_from_a_rotation.inverse();
+        cam2_from_cam1_measured_.rotation.cast<T>() *
+        cam2_from_cam1_rotation.inverse();
     const Eigen::Matrix<T, 3, 1> measured_from_estimated_translation =
-        b_from_a_measured_.translation.cast<T>() -
-        measured_from_estimated_rotation * b_from_a_translation;
+        cam2_from_cam1_measured_.translation.cast<T>() -
+        measured_from_estimated_rotation * cam2_from_cam1_translation;
 
     // Compute the residuals.
     Eigen::Map<Eigen::Matrix<T, 6, 1>> residuals_map(residuals);
@@ -505,7 +507,7 @@ class RelativePoseError6DoFCostFunction {
   }
 
  private:
-  const Rigid3d b_from_a_measured_;
+  const Rigid3d cam2_from_cam1_measured_;
   const Eigen::Matrix6d sqrt_information_;
 };
 
@@ -522,34 +524,36 @@ class SmoothMotionCostFunction {
   }
 
   template <typename T>
-  bool operator()(const T* const a_from_world_rotation,
-                  const T* const a_from_world_translation,
-                  const T* const b_from_world_rotation,
-                  const T* const b_from_world_translation,
-                  const T* const c_from_world_rotation,
-                  const T* const c_from_world_translation,
+  bool operator()(const T* const cam1_from_world_rotation,
+                  const T* const cam1_from_world_translation,
+                  const T* const cam2_from_world_rotation,
+                  const T* const cam2_from_world_translation,
+                  const T* const cam3_from_world_rotation,
+                  const T* const cam3_from_world_translation,
                   T* residuals) const {
-    // Compute relative transform from a to b.
-    const Eigen::Quaternion<T> b_from_a_rotation =
-        EigenQuaternionMap<T>(b_from_world_rotation) *
-        EigenQuaternionMap<T>(a_from_world_rotation).inverse();
-    const Eigen::Matrix<T, 3, 1> b_from_a_translation =
-        EigenVector3Map<T>(b_from_world_translation) -
-        b_from_a_rotation * EigenVector3Map<T>(a_from_world_translation);
-    // Compute relative transfortransformmation from b to c.
-    const Eigen::Quaternion<T> c_from_b_rotation =
-        EigenQuaternionMap<T>(c_from_world_rotation) *
-        EigenQuaternionMap<T>(b_from_world_rotation).inverse();
-    const Eigen::Matrix<T, 3, 1> c_from_b_translation =
-        EigenVector3Map<T>(c_from_world_translation) -
-        c_from_b_rotation * EigenVector3Map<T>(b_from_world_translation);
+    // Compute relative transform from 1 to 2.
+    const Eigen::Quaternion<T> cam2_from_cam1_rotation =
+        EigenQuaternionMap<T>(cam2_from_world_rotation) *
+        EigenQuaternionMap<T>(cam1_from_world_rotation).inverse();
+    const Eigen::Matrix<T, 3, 1> cam2_from_cam1_translation =
+        EigenVector3Map<T>(cam2_from_world_translation) -
+        cam2_from_cam1_rotation *
+            EigenVector3Map<T>(cam1_from_world_translation);
+    // Compute relative transfortransformmation from 2 to 3.
+    const Eigen::Quaternion<T> cam3_from_cam2_rotation =
+        EigenQuaternionMap<T>(cam3_from_world_rotation) *
+        EigenQuaternionMap<T>(cam2_from_world_rotation).inverse();
+    const Eigen::Matrix<T, 3, 1> cam3_from_cam2_translation =
+        EigenVector3Map<T>(cam3_from_world_translation) -
+        cam3_from_cam2_rotation *
+            EigenVector3Map<T>(cam2_from_world_translation);
 
-    // Compute residuals such that the relative transform from a to b
-    // should be similar to relative transform from b to c.
+    // Compute residuals such that the relative transform from 1 to 2
+    // should be similar to relative transform from 2 to 3.
     const Eigen::Quaternion<T> diff_rotation =
-        c_from_b_rotation * b_from_a_rotation.inverse();
+        cam3_from_cam2_rotation * cam2_from_cam1_rotation.inverse();
     const Eigen::Matrix<T, 3, 1> diff_translation =
-        c_from_b_translation - diff_rotation * b_from_a_translation;
+        cam3_from_cam2_translation - diff_rotation * cam2_from_cam1_translation;
 
     Eigen::Map<Eigen::Matrix<T, 6, 1>> residuals_map(residuals);
     residuals_map.template block<3, 1>(0, 0) = T(2.0) * diff_rotation.vec();

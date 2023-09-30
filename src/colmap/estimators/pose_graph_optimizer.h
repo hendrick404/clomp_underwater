@@ -20,15 +20,15 @@ class PoseGraphOptimizer {
                        const Eigen::Matrix6d& information,
                        ceres::LossFunction* loss_function);
 
-  void AddRelativePose(image_t image_id_a,
-                       image_t image_id_b,
-                       const Rigid3d& b_from_a_measured,
+  void AddRelativePose(image_t image_id1,
+                       image_t image_id2,
+                       const Rigid3d& cam2_from_cam1_measured,
                        const Eigen::Matrix6d& information,
                        ceres::LossFunction* loss_function);
 
-  void AddSmoothMotion(image_t image_id_a,
-                       image_t image_id_b,
-                       image_t image_id_c,
+  void AddSmoothMotion(image_t image_id1,
+                       image_t image_id2,
+                       image_t image_id3,
                        const Eigen::Matrix6d& information,
                        ceres::LossFunction* loss_function);
   bool Solve();

@@ -385,24 +385,24 @@ void HybridMapper::GlobalPoseGraphOptim(const Options& options) {
 
   for (const auto recon : sub_recons) {
     for (const auto& image_pair : upgraded_image_pair_stats_) {
-      image_t image_id_a;
-      image_t image_id_b;
-      Database::PairIdToImagePair(image_pair.first, &image_id_a, &image_id_b);
+      image_t image_id1;
+      image_t image_id2;
+      Database::PairIdToImagePair(image_pair.first, &image_id1, &image_id2);
 
-      if (!recon->ExistsImage(image_id_a) || !recon->ExistsImage(image_id_b) ||
-          !recon->IsImageRegistered(image_id_a) ||
-          !recon->IsImageRegistered(image_id_b)) {
+      if (!recon->ExistsImage(image_id1) || !recon->ExistsImage(image_id2) ||
+          !recon->IsImageRegistered(image_id1) ||
+          !recon->IsImageRegistered(image_id2)) {
         continue;
       }
 
-      const Image& image_a = recon->Image(image_id_a);
-      const Image& image_b = recon->Image(image_id_b);
+      const Image& image_a = recon->Image(image_id1);
+      const Image& image_b = recon->Image(image_id2);
 
-      const Rigid3d b_from_a =
+      const Rigid3d cam2_from_cam1 =
           image_b.CamFromWorld() * Inverse(image_a.CamFromWorld());
-      pgo_optim.AddRelativePose(image_id_a,
-                                image_id_b,
-                                b_from_a,
+      pgo_optim.AddRelativePose(image_id1,
+                                image_id2,
+                                cam2_from_cam1,
                                 information * options.pgo_rel_pose_multi,
                                 nullptr);
       num_rel++;

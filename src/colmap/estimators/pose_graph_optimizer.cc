@@ -43,91 +43,96 @@ void PoseGraphOptimizer::AddAbsolutePose(const image_t image_id,
   SetQuaternionManifold(problem_.get(), cam_from_world_rotation);
 }
 
-void PoseGraphOptimizer::AddRelativePose(const image_t image_id_a,
-                                         const image_t image_id_b,
-                                         const Rigid3d& b_from_a_measured,
+void PoseGraphOptimizer::AddRelativePose(const image_t image_id1,
+                                         const image_t image_id2,
+                                         const Rigid3d& cam2_from_cam1_measured,
                                          const Eigen::Matrix6d& information,
                                          ceres::LossFunction* loss_function) {
-  CHECK(reconstruction_->IsImageRegistered(image_id_a) &&
-        reconstruction_->IsImageRegistered(image_id_b));
+  CHECK(reconstruction_->IsImageRegistered(image_id1) &&
+        reconstruction_->IsImageRegistered(image_id2));
 
   const Eigen::Matrix6d sqrt_information = information.llt().matrixL();
 
-  Image& image_a = reconstruction_->Image(image_id_a);
-  Image& image_b = reconstruction_->Image(image_id_b);
+  Image& image1 = reconstruction_->Image(image_id1);
+  Image& image2 = reconstruction_->Image(image_id2);
 
   // CostFunction assumes unit quaternions.
-  image_a.CamFromWorld().rotation.normalize();
-  image_b.CamFromWorld().rotation.normalize();
+  image1.CamFromWorld().rotation.normalize();
+  image2.CamFromWorld().rotation.normalize();
 
-  double* a_from_world_rotation =
-      image_a.CamFromWorld().rotation.coeffs().data();
-  double* a_from_world_translation = image_a.CamFromWorld().translation.data();
-  double* b_from_world_rotation =
-      image_b.CamFromWorld().rotation.coeffs().data();
-  double* b_from_world_translation = image_b.CamFromWorld().translation.data();
+  double* cam1_from_world_rotation =
+      image1.CamFromWorld().rotation.coeffs().data();
+  double* cam1_from_world_translation =
+      image1.CamFromWorld().translation.data();
+  double* cam2_from_world_rotation =
+      image2.CamFromWorld().rotation.coeffs().data();
+  double* cam2_from_world_translation =
+      image2.CamFromWorld().translation.data();
 
   ceres::CostFunction* cost_function =
-      RelativePoseError6DoFCostFunction::Create(b_from_a_measured,
+      RelativePoseError6DoFCostFunction::Create(cam2_from_cam1_measured,
                                                 sqrt_information);
 
   problem_->AddResidualBlock(cost_function,
                              loss_function,
-                             a_from_world_rotation,
-                             a_from_world_translation,
-                             b_from_world_rotation,
-                             b_from_world_translation);
+                             cam1_from_world_rotation,
+                             cam1_from_world_translation,
+                             cam2_from_world_rotation,
+                             cam2_from_world_translation);
 
-  SetQuaternionManifold(problem_.get(), a_from_world_rotation);
-  SetQuaternionManifold(problem_.get(), b_from_world_rotation);
+  SetQuaternionManifold(problem_.get(), cam1_from_world_rotation);
+  SetQuaternionManifold(problem_.get(), cam2_from_world_rotation);
 }
 
-void PoseGraphOptimizer::AddSmoothMotion(const image_t image_id_a,
-                                         const image_t image_id_b,
-                                         const image_t image_id_c,
+void PoseGraphOptimizer::AddSmoothMotion(const image_t image_id1,
+                                         const image_t image_id2,
+                                         const image_t image_id3,
                                          const Eigen::Matrix6d& information,
                                          ceres::LossFunction* loss_function) {
-  CHECK(reconstruction_->IsImageRegistered(image_id_a) &&
-        reconstruction_->IsImageRegistered(image_id_b) &&
-        reconstruction_->IsImageRegistered(image_id_c));
+  CHECK(reconstruction_->IsImageRegistered(image_id1) &&
+        reconstruction_->IsImageRegistered(image_id2) &&
+        reconstruction_->IsImageRegistered(image_id3));
 
   const Eigen::Matrix6d sqrt_information = information.llt().matrixL();
 
-  Image& image_a = reconstruction_->Image(image_id_a);
-  Image& image_b = reconstruction_->Image(image_id_b);
-  Image& image_c = reconstruction_->Image(image_id_c);
+  Image& image1 = reconstruction_->Image(image_id1);
+  Image& image2 = reconstruction_->Image(image_id2);
+  Image& image3 = reconstruction_->Image(image_id3);
 
   // CostFunction assumes unit quaternions.
 
-  image_a.CamFromWorld().rotation.normalize();
-  image_b.CamFromWorld().rotation.normalize();
-  image_c.CamFromWorld().rotation.normalize();
+  image1.CamFromWorld().rotation.normalize();
+  image2.CamFromWorld().rotation.normalize();
+  image3.CamFromWorld().rotation.normalize();
 
-  double* a_from_world_rotation =
-      image_a.CamFromWorld().rotation.coeffs().data();
-  double* a_from_world_translation = image_a.CamFromWorld().translation.data();
-  double* b_from_world_rotation =
-      image_b.CamFromWorld().rotation.coeffs().data();
-  double* b_from_world_translation = image_b.CamFromWorld().translation.data();
-  double* c_from_world_rotation =
-      image_c.CamFromWorld().rotation.coeffs().data();
-  double* c_from_world_translation = image_c.CamFromWorld().translation.data();
+  double* cam1_from_world_rotation =
+      image1.CamFromWorld().rotation.coeffs().data();
+  double* cam1_from_world_translation =
+      image1.CamFromWorld().translation.data();
+  double* cam2_from_world_rotation =
+      image2.CamFromWorld().rotation.coeffs().data();
+  double* cam2_from_world_translation =
+      image2.CamFromWorld().translation.data();
+  double* cam3_from_world_rotation =
+      image3.CamFromWorld().rotation.coeffs().data();
+  double* cam3_from_world_translation =
+      image3.CamFromWorld().translation.data();
 
   ceres::CostFunction* cost_function =
       SmoothMotionCostFunction::Create(sqrt_information);
 
   problem_->AddResidualBlock(cost_function,
                              loss_function,
-                             a_from_world_rotation,
-                             a_from_world_translation,
-                             b_from_world_rotation,
-                             b_from_world_translation,
-                             c_from_world_rotation,
-                             c_from_world_translation);
+                             cam1_from_world_rotation,
+                             cam1_from_world_translation,
+                             cam2_from_world_rotation,
+                             cam2_from_world_translation,
+                             cam3_from_world_rotation,
+                             cam3_from_world_translation);
 
-  SetQuaternionManifold(problem_.get(), a_from_world_rotation);
-  SetQuaternionManifold(problem_.get(), b_from_world_rotation);
-  SetQuaternionManifold(problem_.get(), c_from_world_rotation);
+  SetQuaternionManifold(problem_.get(), cam1_from_world_rotation);
+  SetQuaternionManifold(problem_.get(), cam2_from_world_rotation);
+  SetQuaternionManifold(problem_.get(), cam3_from_world_rotation);
 }
 
 bool PoseGraphOptimizer::Solve() {
