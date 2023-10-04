@@ -48,6 +48,7 @@ MapperGeneralOptionsWidget::MapperGeneralOptionsWidget(QWidget* parent,
   AddOptionBool(&options->mapper->ignore_watermarks, "ignore_watermarks");
   AddOptionBool(&options->mapper->use_pose_prior, "use_pose_prior");
   AddOptionText(&options->mapper->prior_from_cam, "prior_from_cam");
+  AddOptionBool(&options->mapper->enable_refraction, "enable_refraction");
   AddOptionDirPath(&options->mapper->snapshot_path, "snapshot_path");
   AddOptionInt(
       &options->mapper->snapshot_images_freq, "snapshot_images_freq", 0);

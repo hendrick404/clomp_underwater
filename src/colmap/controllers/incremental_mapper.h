@@ -165,6 +165,9 @@ struct IncrementalMapperOptions {
   // number of images.
   int ba_refine_intrin_after_num_images = -1;
 
+  // Whether to use refractive camera model in reconstruction.
+  bool enable_refraction = false;
+
   IncrementalMapper::Options Mapper() const;
   IncrementalTriangulator::Options Triangulation() const;
   BundleAdjustmentOptions LocalBundleAdjustment() const;
