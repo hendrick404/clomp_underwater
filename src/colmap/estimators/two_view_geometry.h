@@ -169,10 +169,14 @@ bool DetectWatermark(const Camera& camera1,
                      const TwoViewGeometryOptions& options);
 
 TwoViewGeometry EstimateRefractiveTwoViewGeometry(
-    const Camera& camera1,
-    const std::vector<Eigen::Vector2d>& points1,
-    const Camera& camera2,
-    const std::vector<Eigen::Vector2d>& points2,
+    const Camera& virtual_camera1,
+    const std::vector<Eigen::Vector2d>& virtual_points1,
+    const Eigen::Quaterniond& virtual_from_real_rotation1,
+    const std::vector<Eigen::Vector3d> virtual_from_real_translations1,
+    const Camera& virtual_camera2,
+    const std::vector<Eigen::Vector2d>& virtual_points2,
+    const Eigen::Quaterniond& virtual_from_real_rotation2,
+    const std::vector<Eigen::Vector3d> virtual_from_real_translations2,
     const FeatureMatches& matches,
     const TwoViewGeometryOptions& options);
 

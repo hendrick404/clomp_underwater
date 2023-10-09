@@ -170,7 +170,7 @@ class Image {
       const std::vector<Eigen::Vector2d>& points2D,
       Eigen::Quaterniond& virtual_from_real_rotation,
       std::vector<Eigen::Vector3d>& virtual_from_real_translations,
-      std::vector<Eigen::Vector2d>& points2D_virtual);
+      std::vector<Eigen::Vector2d>& virtual_points2D) const;
 
   void ComputeVirtualTransformations(const Camera& camera);
 
@@ -227,7 +227,7 @@ class Image {
   VisibilityPyramid point3D_visibility_pyramid_;
 
   // All image points in virtual coordinate for the refractive reconstruction.
-  std::vector<struct Point2D> points2D_virtual_;
+  std::vector<struct Point2D> virtual_points2D_;
 
   // Virtual from real transformations, one translation per point.
   Eigen::Quaterniond virtual_from_real_rotation_;

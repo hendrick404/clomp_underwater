@@ -308,10 +308,7 @@ TwoViewGeometry EstimateTwoViewGeometry(
     const std::vector<Eigen::Vector2d>& points2,
     const FeatureMatches& matches,
     const TwoViewGeometryOptions& options) {
-  if (options.enable_refraction) {
-    return EstimateRefractiveTwoViewGeometry(
-        camera1, points1, camera2, points2, matches, options);
-  } else if (options.multiple_models) {
+  if (options.multiple_models) {
     return EstimateMultipleTwoViewGeometries(
         camera1, points1, camera2, points2, matches, options);
   } else if (options.force_H_use) {
@@ -634,10 +631,14 @@ bool DetectWatermark(const Camera& camera1,
 }
 
 TwoViewGeometry EstimateRefractiveTwoViewGeometry(
-    const Camera& camera1,
-    const std::vector<Eigen::Vector2d>& points1,
-    const Camera& camera2,
-    const std::vector<Eigen::Vector2d>& points2,
+    const Camera& virtual_camera1,
+    const std::vector<Eigen::Vector2d>& virtual_points1,
+    const Eigen::Quaterniond& virtual_from_real_rotation1,
+    const std::vector<Eigen::Vector3d> virtual_from_real_translations1,
+    const Camera& virtual_camera2,
+    const std::vector<Eigen::Vector2d>& virtual_points2,
+    const Eigen::Quaterniond& virtual_from_real_rotation2,
+    const std::vector<Eigen::Vector3d> virtual_from_real_translations2,
     const FeatureMatches& matches,
     const TwoViewGeometryOptions& options) {
   TwoViewGeometry geometry;

@@ -320,8 +320,45 @@ class VerifierWorker : public Thread {
         const std::vector<Eigen::Vector2d> points2 =
             FeatureKeypointsToPointsVector(*keypoints2);
 
-        data.two_view_geometry = EstimateTwoViewGeometry(
-            camera1, points1, camera2, points2, data.matches, options_);
+        const Camera virtual_camera1 = camera1.VirtualCamera();
+        const Camera virtual_camera2 = camera2.VirtualCamera();
+
+        Eigen::Quaterniond virtual_from_real_rotation1;
+        Eigen::Quaterniond virtual_from_real_rotation2;
+        std::vector<Eigen::Vector3d> virtual_from_real_translations1;
+        std::vector<Eigen::Vector3d> virtual_from_real_translations2;
+        std::vector<Eigen::Vector2d> virtual_points1;
+        std::vector<Eigen::Vector2d> virtual_points2;
+
+        cache_->GetImage(data.image_id1)
+            .ComputeVirtualTransformations(camera1,
+                                           points1,
+                                           virtual_from_real_rotation1,
+                                           virtual_from_real_translations1,
+                                           virtual_points1);
+        cache_->GetImage(data.image_id2)
+            .ComputeVirtualTransformations(camera2,
+                                           points2,
+                                           virtual_from_real_rotation2,
+                                           virtual_from_real_translations2,
+                                           virtual_points2);
+
+        if (!options_.enable_refraction) {
+          data.two_view_geometry = EstimateTwoViewGeometry(
+              camera1, points1, camera2, points2, data.matches, options_);
+        } else {
+          data.two_view_geometry =
+              EstimateRefractiveTwoViewGeometry(virtual_camera1,
+                                                virtual_points1,
+                                                virtual_from_real_rotation1,
+                                                virtual_from_real_translations1,
+                                                virtual_camera2,
+                                                virtual_points2,
+                                                virtual_from_real_rotation2,
+                                                virtual_from_real_translations2,
+                                                data.matches,
+                                                options_);
+        }
 
         CHECK(output_queue_->Push(std::move(data)));
       }

@@ -146,8 +146,8 @@ Eigen::Vector3d Image::ViewingDirection() const {
 }
 
 void Image::SetVirtualPoints2D(const std::vector<Eigen::Vector2d>& points) {
-  CHECK(points2D_virtual_.empty());
-  points2D_virtual_.resize(points.size());
+  CHECK(virtual_points2D_.empty());
+  virtual_points2D_.resize(points.size());
   for (point2D_t point2D_idx = 0; point2D_idx < points.size(); ++point2D_idx) {
     points2D_[point2D_idx].xy = points[point2D_idx];
   }
@@ -158,14 +158,14 @@ void Image::ComputeVirtualTransformations(
     const std::vector<Eigen::Vector2d>& points2D,
     Eigen::Quaterniond& virtual_from_real_rotation,
     std::vector<Eigen::Vector3d>& virtual_from_real_translations,
-    std::vector<Eigen::Vector2d>& points2D_virtual) {
+    std::vector<Eigen::Vector2d>& virtual_points2D) const {
   // Make sure camera is refractive when calling this function from outside.
   CHECK(camera.IsCameraRefractive()) << "Camera is not refractive";
 
   const size_t num_points = points2D.size();
 
   virtual_from_real_translations.reserve(num_points);
-  points2D_virtual.reserve(num_points);
+  virtual_points2D.reserve(num_points);
 
   // Compute virtual camera intrinsics.
   Camera virtual_camera = camera.VirtualCamera();
@@ -219,7 +219,7 @@ void Image::ComputeVirtualTransformations(
         virtual_camera.ImgFromCam(point3D_v.hnormalized());
 
     // Finish up.
-    points2D_virtual.push_back(point2D_v);
+    virtual_points2D.push_back(point2D_v);
     virtual_from_real_translations.push_back(virtual_from_real_translation);
   }
 }
@@ -231,14 +231,14 @@ void Image::ComputeVirtualTransformations(const Camera& camera) {
     points2D_xy.emplace_back(points2D_[point2D_idx].xy);
   }
 
-  std::vector<Eigen::Vector2d> points2D_virtual_xy;
+  std::vector<Eigen::Vector2d> virtual_points2D_xy;
   ComputeVirtualTransformations(camera,
                                 points2D_xy,
                                 virtual_from_real_rotation_,
                                 virtual_from_real_translations_,
-                                points2D_virtual_xy);
+                                virtual_points2D_xy);
 
-  SetVirtualPoints2D(points2D_virtual_xy);
+  SetVirtualPoints2D(virtual_points2D_xy);
 }
 
 }  // namespace colmap
