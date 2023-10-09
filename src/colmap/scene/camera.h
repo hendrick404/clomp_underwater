@@ -186,6 +186,9 @@ class Camera {
   void Rescale(double scale);
   void Rescale(size_t width, size_t height);
 
+  // If the camera is refractive, this function returns a simple pinhole virtual camera.
+  Camera VirtualCamera() const;
+
  private:
   // The unique identifier of the camera. If the identifier is not specified
   // it is set to `kInvalidCameraId`.

@@ -308,7 +308,10 @@ TwoViewGeometry EstimateTwoViewGeometry(
     const std::vector<Eigen::Vector2d>& points2,
     const FeatureMatches& matches,
     const TwoViewGeometryOptions& options) {
-  if (options.multiple_models) {
+  if (options.enable_refraction) {
+    return EstimateRefractiveTwoViewGeometry(
+        camera1, points1, camera2, points2, matches, options);
+  } else if (options.multiple_models) {
     return EstimateMultipleTwoViewGeometries(
         camera1, points1, camera2, points2, matches, options);
   } else if (options.force_H_use) {
@@ -628,6 +631,17 @@ bool DetectWatermark(const Camera& camera1,
       static_cast<double>(report.support.num_inliers) / num_inliers;
 
   return inlier_ratio >= options.watermark_min_inlier_ratio;
+}
+
+TwoViewGeometry EstimateRefractiveTwoViewGeometry(
+    const Camera& camera1,
+    const std::vector<Eigen::Vector2d>& points1,
+    const Camera& camera2,
+    const std::vector<Eigen::Vector2d>& points2,
+    const FeatureMatches& matches,
+    const TwoViewGeometryOptions& options) {
+  TwoViewGeometry geometry;
+  return geometry;
 }
 
 }  // namespace colmap

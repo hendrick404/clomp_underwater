@@ -163,6 +163,17 @@ class Image {
   inline const Eigen::Matrix7d& CamFromWorldPriorCov() const;
   inline Eigen::Matrix7d& CamFromWorldPriorCov();
 
+  void SetVirtualPoints2D(const std::vector<Eigen::Vector2d>& points);
+
+  void ComputeVirtualTransformations(
+      const Camera& camera,
+      const std::vector<Eigen::Vector2d>& points2D,
+      Eigen::Quaterniond& virtual_from_real_rotation,
+      std::vector<Eigen::Vector3d>& virtual_from_real_translations,
+      std::vector<Eigen::Vector2d>& points2D_virtual);
+
+  void ComputeVirtualTransformations(const Camera& camera);
+
   // The number of levels in the 3D point multi-resolution visibility pyramid.
   static const int kNumPoint3DVisibilityPyramidLevels;
 
@@ -214,6 +225,13 @@ class Image {
   // Data structure to compute the distribution of triangulated correspondences
   // in the image. Note that this structure is only usable after `SetUp`.
   VisibilityPyramid point3D_visibility_pyramid_;
+
+  // All image points in virtual coordinate for the refractive reconstruction.
+  std::vector<struct Point2D> points2D_virtual_;
+
+  // Virtual from real transformations, one translation per point.
+  Eigen::Quaterniond virtual_from_real_rotation_;
+  std::vector<Eigen::Vector3d> virtual_from_real_translations_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

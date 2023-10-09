@@ -336,4 +336,26 @@ void Camera::Rescale(const size_t width, const size_t height) {
   }
 }
 
+Camera Camera::VirtualCamera() const {
+  colmap::Camera virtual_camera;
+  virtual_camera.SetModelIdFromName("SIMPLE_PINHOLE");
+  virtual_camera.SetWidth(width_);
+  virtual_camera.SetHeight(height_);
+
+  double f;
+
+  const std::vector<size_t>& idxs = FocalLengthIdxs();
+  if (idxs.size() == 1) {
+    f = params_[idxs[0]];
+  } else if (idxs.size() == 2) {
+    f = (params_[idxs[0]] + params_[idxs[1]]) / 2.0;
+  } else {
+    LOG(FATAL)
+        << "Camera model must either have 1 or 2 focal length parameters.";
+  }
+
+  virtual_camera.SetParams({f, PrincipalPointX(), PrincipalPointY()});
+  return virtual_camera;
+}
+
 }  // namespace colmap

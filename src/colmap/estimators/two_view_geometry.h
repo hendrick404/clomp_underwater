@@ -94,6 +94,9 @@ struct TwoViewGeometryOptions {
   // field will be initialized.
   bool multiple_models = false;
 
+  // Whether to use refractive camera model in reconstruction.
+  bool enable_refraction = false;
+
   // TwoViewGeometryOptions used to robustly estimate the geometry.
   RANSACOptions ransac_options;
 
@@ -164,5 +167,13 @@ bool DetectWatermark(const Camera& camera1,
                      size_t num_inliers,
                      const std::vector<char>& inlier_mask,
                      const TwoViewGeometryOptions& options);
+
+TwoViewGeometry EstimateRefractiveTwoViewGeometry(
+    const Camera& camera1,
+    const std::vector<Eigen::Vector2d>& points1,
+    const Camera& camera2,
+    const std::vector<Eigen::Vector2d>& points2,
+    const FeatureMatches& matches,
+    const TwoViewGeometryOptions& options);
 
 }  // namespace colmap

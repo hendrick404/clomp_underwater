@@ -234,6 +234,9 @@ class IncrementalMapper {
   // Clear the collection of changed 3D points.
   void ClearModifiedPoints3D();
 
+  // Compute virtual camera transformations if refraction is eanbled.
+  void ComputeVirtualCameraTransformations();
+
  private:
   // Find seed images for incremental reconstruction. Suitable seed images have
   // a large number of correspondences and have camera calibration priors. The
