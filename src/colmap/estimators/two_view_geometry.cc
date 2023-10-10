@@ -31,6 +31,7 @@
 
 #include "colmap/estimators/essential_matrix.h"
 #include "colmap/estimators/fundamental_matrix.h"
+#include "colmap/estimators/generalized_relative_pose.h"
 #include "colmap/estimators/homography_matrix.h"
 #include "colmap/estimators/translation_transform.h"
 #include "colmap/geometry/essential_matrix.h"
@@ -642,6 +643,57 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
     const FeatureMatches& matches,
     const TwoViewGeometryOptions& options) {
   TwoViewGeometry geometry;
+
+  const size_t min_num_inliers = static_cast<size_t>(options.min_num_inliers);
+  if (matches.size() < min_num_inliers) {
+    geometry.config = TwoViewGeometry::ConfigurationType::DEGENERATE;
+    return geometry;
+  }
+
+  // Extract corresponding points.
+  std::vector<GR6PEstimator::X_t> matched_points1(matches.size());
+  std::vector<GR6PEstimator::Y_t> matched_points2(matches.size());
+  for (size_t i = 0; i < matches.size(); ++i) {
+    matched_points1[i].cam_from_rig =
+        Rigid3d(virtual_from_real_rotation1,
+                virtual_from_real_translations1[matches[i].point2D_idx1]);
+    matched_points1[i].ray_in_cam =
+        virtual_camera1.CamFromImg(virtual_points1[matches[i].point2D_idx1])
+            .homogeneous()
+            .normalized();
+
+    matched_points2[i].cam_from_rig =
+        Rigid3d(virtual_from_real_rotation2,
+                virtual_from_real_translations2[matches[i].point2D_idx2]);
+    matched_points2[i].ray_in_cam =
+        virtual_camera2.CamFromImg(virtual_points2[matches[i].point2D_idx2])
+            .homogeneous()
+            .normalized();
+  }
+
+  RANSACOptions ransac_options_copy = options.ransac_options;
+  // Give it more iterations for RANSAC.
+  ransac_options_copy.max_num_trials = std::numeric_limits<int>::max();
+
+  ransac_options_copy.max_error =
+      (virtual_camera1.CamFromImgThreshold(ransac_options_copy.max_error) +
+       virtual_camera2.CamFromImgThreshold(ransac_options_copy.max_error)) /
+      2;
+  LORANSAC<GR6PEstimator, GR6PEstimator> ransac(ransac_options_copy);
+  const auto report = ransac.Estimate(matched_points1, matched_points2);
+  geometry.cam2_from_cam1 = report.model;
+
+  if (!report.success || report.support.num_inliers < min_num_inliers) {
+    geometry.config = TwoViewGeometry::ConfigurationType::DEGENERATE;
+    return geometry;
+  } else {
+    geometry.config = TwoViewGeometry::ConfigurationType::REFRACTIVE;
+  }
+
+  // Generalized relative pose estimator outputs directly cam2_from_cam1.
+  geometry.inlier_matches = ExtractInlierMatches(
+      matches, report.support.num_inliers, report.inlier_mask);
+
   return geometry;
 }
 

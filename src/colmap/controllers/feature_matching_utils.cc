@@ -342,7 +342,6 @@ class VerifierWorker : public Thread {
                                            virtual_from_real_rotation2,
                                            virtual_from_real_translations2,
                                            virtual_points2);
-
         if (!options_.enable_refraction) {
           data.two_view_geometry = EstimateTwoViewGeometry(
               camera1, points1, camera2, points2, data.matches, options_);

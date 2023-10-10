@@ -178,6 +178,7 @@ void Image::ComputeVirtualTransformations(
     refrac_axis.x() = camera.RefracParams()[0];
     refrac_axis.y() = camera.RefracParams()[1];
     refrac_axis.z() = camera.RefracParams()[2];
+    refrac_axis.normalize();
   } else if (camera.RefracModelName() == "DOMEPORT") {
     // For domeports, the refraction axis is the decentering direction.
     refrac_axis = Eigen::Vector3d(camera.RefracParams()[0],
