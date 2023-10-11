@@ -320,39 +320,53 @@ class VerifierWorker : public Thread {
         const std::vector<Eigen::Vector2d> points2 =
             FeatureKeypointsToPointsVector(*keypoints2);
 
-        const Camera virtual_camera1 = camera1.VirtualCamera();
-        const Camera virtual_camera2 = camera2.VirtualCamera();
-
-        Eigen::Quaterniond virtual_from_real_rotation1;
-        Eigen::Quaterniond virtual_from_real_rotation2;
-        std::vector<Eigen::Vector3d> virtual_from_real_translations1;
-        std::vector<Eigen::Vector3d> virtual_from_real_translations2;
-        std::vector<Eigen::Vector2d> virtual_points1;
-        std::vector<Eigen::Vector2d> virtual_points2;
-
-        cache_->GetImage(data.image_id1)
-            .ComputeVirtualTransformations(camera1,
-                                           points1,
-                                           virtual_from_real_rotation1,
-                                           virtual_from_real_translations1,
-                                           virtual_points1);
-        cache_->GetImage(data.image_id2)
-            .ComputeVirtualTransformations(camera2,
-                                           points2,
-                                           virtual_from_real_rotation2,
-                                           virtual_from_real_translations2,
-                                           virtual_points2);
         if (!options_.enable_refraction) {
           data.two_view_geometry = EstimateTwoViewGeometry(
               camera1, points1, camera2, points2, data.matches, options_);
         } else {
+          std::vector<Camera> virtual_cameras1;
+          std::vector<Camera> virtual_cameras2;
+          Eigen::Quaterniond virtual_from_real_rotation1;
+          Eigen::Quaterniond virtual_from_real_rotation2;
+          std::vector<Eigen::Vector3d> virtual_from_real_translations1;
+          std::vector<Eigen::Vector3d> virtual_from_real_translations2;
+
+          virtual_cameras1.reserve(points1.size());
+          virtual_cameras2.reserve(points2.size());
+          virtual_from_real_translations1.reserve(points1.size());
+          virtual_from_real_translations2.reserve(points2.size());
+
+          virtual_from_real_rotation1 = camera1.VirtualFromRealRotation();
+          virtual_from_real_rotation2 = camera2.VirtualFromRealRotation();
+
+          for (const Eigen::Vector2d& point : points1) {
+            const Ray3D ray_refrac = camera1.CamFromImgRefrac(point);
+            const Eigen::Vector3d virtual_cam_center =
+                camera1.VirtualCameraCenter(point);
+            virtual_from_real_translations1.push_back(
+                virtual_from_real_rotation1 * -virtual_cam_center);
+            virtual_cameras1.push_back(
+                camera1.VirtualCamera(point, ray_refrac.dir.hnormalized()));
+          }
+
+          for (const Eigen::Vector2d& point : points2) {
+            const Ray3D ray_refrac = camera2.CamFromImgRefrac(point);
+            const Eigen::Vector3d virtual_cam_center =
+                camera1.VirtualCameraCenter(point);
+            virtual_from_real_translations2.push_back(
+                virtual_from_real_rotation2 * -virtual_cam_center);
+            virtual_cameras2.push_back(
+                camera2.VirtualCamera(point, ray_refrac.dir.hnormalized()));
+          }
+
           data.two_view_geometry =
-              EstimateRefractiveTwoViewGeometry(virtual_camera1,
-                                                virtual_points1,
+              EstimateRefractiveTwoViewGeometry(points1,
+                                                virtual_cameras1,
+
                                                 virtual_from_real_rotation1,
                                                 virtual_from_real_translations1,
-                                                virtual_camera2,
-                                                virtual_points2,
+                                                points2,
+                                                virtual_cameras2,
                                                 virtual_from_real_rotation2,
                                                 virtual_from_real_translations2,
                                                 data.matches,

@@ -36,6 +36,6 @@ COLMAP_ADD_EXECUTABLE(
     SRCS 
         testbed.cc
     LINK_LIBS
-        Eigen3::Eigen
+        colmap_scene
 )
 set_target_properties(colmap_testbed PROPERTIES OUTPUT_NAME testbed) 

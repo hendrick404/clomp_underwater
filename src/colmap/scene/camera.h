@@ -186,8 +186,18 @@ class Camera {
   void Rescale(double scale);
   void Rescale(size_t width, size_t height);
 
-  // If the camera is refractive, this function returns a simple pinhole virtual camera.
-  Camera VirtualCamera() const;
+  // Return the refraction axis if the camera is refractive.
+  Eigen::Vector3d RefractionAxis() const;
+
+  // Return the rotation from the real camera to virtual camera.
+  Eigen::Quaterniond VirtualFromRealRotation() const;
+
+  Eigen::Vector3d VirtualCameraCenter(const Eigen::Vector2d& image_point) const;
+
+  // If the camera is refractive, this function returns a simple pinhole virtual
+  // camera which observes the `cam_point` from the `image_point` perspectively.
+  Camera VirtualCamera(const Eigen::Vector2d& image_point,
+                       const Eigen::Vector2d& cam_point) const;
 
  private:
   // The unique identifier of the camera. If the identifier is not specified

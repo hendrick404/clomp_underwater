@@ -163,17 +163,6 @@ class Image {
   inline const Eigen::Matrix7d& CamFromWorldPriorCov() const;
   inline Eigen::Matrix7d& CamFromWorldPriorCov();
 
-  void SetVirtualPoints2D(const std::vector<Eigen::Vector2d>& points);
-
-  void ComputeVirtualTransformations(
-      const Camera& camera,
-      const std::vector<Eigen::Vector2d>& points2D,
-      Eigen::Quaterniond& virtual_from_real_rotation,
-      std::vector<Eigen::Vector3d>& virtual_from_real_translations,
-      std::vector<Eigen::Vector2d>& virtual_points2D) const;
-
-  void ComputeVirtualTransformations(const Camera& camera);
-
   // The number of levels in the 3D point multi-resolution visibility pyramid.
   static const int kNumPoint3DVisibilityPyramidLevels;
 

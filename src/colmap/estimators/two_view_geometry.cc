@@ -632,12 +632,12 @@ bool DetectWatermark(const Camera& camera1,
 }
 
 TwoViewGeometry EstimateRefractiveTwoViewGeometry(
-    const Camera& virtual_camera1,
-    const std::vector<Eigen::Vector2d>& virtual_points1,
+    const std::vector<Eigen::Vector2d>& points1,
+    const std::vector<Camera>& virtual_cameras1,
     const Eigen::Quaterniond& virtual_from_real_rotation1,
     const std::vector<Eigen::Vector3d> virtual_from_real_translations1,
-    const Camera& virtual_camera2,
-    const std::vector<Eigen::Vector2d>& virtual_points2,
+    const std::vector<Eigen::Vector2d>& points2,
+    const std::vector<Camera>& virtual_cameras2,
     const Eigen::Quaterniond& virtual_from_real_rotation2,
     const std::vector<Eigen::Vector3d> virtual_from_real_translations2,
     const FeatureMatches& matches,
@@ -658,7 +658,8 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
         Rigid3d(virtual_from_real_rotation1,
                 virtual_from_real_translations1[matches[i].point2D_idx1]);
     matched_points1[i].ray_in_cam =
-        virtual_camera1.CamFromImg(virtual_points1[matches[i].point2D_idx1])
+        virtual_cameras1[matches[i].point2D_idx1]
+            .CamFromImg(points1[matches[i].point2D_idx1])
             .homogeneous()
             .normalized();
 
@@ -666,7 +667,8 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
         Rigid3d(virtual_from_real_rotation2,
                 virtual_from_real_translations2[matches[i].point2D_idx2]);
     matched_points2[i].ray_in_cam =
-        virtual_camera2.CamFromImg(virtual_points2[matches[i].point2D_idx2])
+        virtual_cameras2[matches[i].point2D_idx2]
+            .CamFromImg(points2[matches[i].point2D_idx2])
             .homogeneous()
             .normalized();
   }
@@ -676,8 +678,8 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
   ransac_options_copy.max_num_trials = std::numeric_limits<int>::max();
 
   ransac_options_copy.max_error =
-      (virtual_camera1.CamFromImgThreshold(ransac_options_copy.max_error) +
-       virtual_camera2.CamFromImgThreshold(ransac_options_copy.max_error)) /
+      (virtual_cameras1[0].CamFromImgThreshold(ransac_options_copy.max_error) +
+       virtual_cameras2[0].CamFromImgThreshold(ransac_options_copy.max_error)) /
       2;
   LORANSAC<GR6PEstimator, GR6PEstimator> ransac(ransac_options_copy);
   const auto report = ransac.Estimate(matched_points1, matched_points2);

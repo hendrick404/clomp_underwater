@@ -336,7 +336,30 @@ void Camera::Rescale(const size_t width, const size_t height) {
   }
 }
 
-Camera Camera::VirtualCamera() const {
+Eigen::Vector3d Camera::RefractionAxis() const {
+  return CameraRefracModelRefractionAxis(refrac_model_id_, refrac_params_);
+}
+
+Eigen::Quaterniond Camera::VirtualFromRealRotation() const {
+  return Eigen::Quaterniond::FromTwoVectors(RefractionAxis(),
+                                            Eigen::Vector3d::UnitZ())
+      .normalized();
+}
+
+Eigen::Vector3d Camera::VirtualCameraCenter(
+    const Eigen::Vector2d& image_point) const {
+  Ray3D ray_refrac = CamFromImgRefrac(image_point);
+  Eigen::Vector3d virtual_cam_center;
+  IntersectLinesWithTolerance<double>(Eigen::Vector3d::Zero(),
+                                      RefractionAxis(),
+                                      ray_refrac.ori,
+                                      -ray_refrac.dir,
+                                      virtual_cam_center);
+  return virtual_cam_center;
+}
+
+Camera Camera::VirtualCamera(const Eigen::Vector2d& image_point,
+                             const Eigen::Vector2d& cam_point) const {
   colmap::Camera virtual_camera;
   virtual_camera.SetModelIdFromName("SIMPLE_PINHOLE");
   virtual_camera.SetWidth(width_);
@@ -354,7 +377,11 @@ Camera Camera::VirtualCamera() const {
         << "Camera model must either have 1 or 2 focal length parameters.";
   }
 
-  virtual_camera.SetParams({f, PrincipalPointX(), PrincipalPointY()});
+  // Determine the principal points.
+  const double cx = image_point.x() - f * cam_point.x();
+  const double cy = image_point.y() - f * cam_point.y();
+
+  virtual_camera.SetParams({f, cx, cy});
   return virtual_camera;
 }
 
