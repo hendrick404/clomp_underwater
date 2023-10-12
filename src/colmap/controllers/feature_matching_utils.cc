@@ -362,7 +362,6 @@ class VerifierWorker : public Thread {
           data.two_view_geometry =
               EstimateRefractiveTwoViewGeometry(points1,
                                                 virtual_cameras1,
-
                                                 virtual_from_real_rotation1,
                                                 virtual_from_real_translations1,
                                                 points2,

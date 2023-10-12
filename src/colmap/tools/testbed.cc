@@ -1,3 +1,4 @@
+#include "colmap/estimators/two_view_geometry.h"
 #include "colmap/geometry/rigid3.h"
 #include "colmap/math/random.h"
 #include "colmap/scene/camera.h"
@@ -7,9 +8,6 @@ using namespace colmap;
 int main(int argc, char* argv[]) {
   if (true) {
     SetPRNGSeed(time(NULL));
-
-    std::cout << "Setup some realistic camera model" << std::endl;
-
     // Camera parameters coming from Anton 131 map.
     colmap::Camera camera;
     camera.SetWidth(4104);
@@ -25,63 +23,145 @@ int main(int argc, char* argv[]) {
                                   0.041314184080814435,
                                   0.00012198372904429465,
                                   0.00051849746014895923};
+
+    // colmap::Camera camera;
+    // camera.SetWidth(2048);
+    // camera.SetHeight(1536);
+    // camera.SetModelIdFromName("PINHOLE");
+    // std::vector<double> params = {
+    //     500.900000, 500.900000, 1024.000000, 768.000000};
+
     camera.SetParams(params);
 
     // Flatport setup.
     camera.SetRefracModelIdFromName("FLATPORT");
     Eigen::Vector3d int_normal;
-    // int_normal[0] = colmap::RandomUniformReal(-0.3, 0.3);
-    // int_normal[1] = colmap::RandomUniformReal(-0.3, 0.3);
-    // int_normal[2] = colmap::RandomUniformReal(0.7, 1.3);
-    // int_normal.normalize();
+    int_normal[0] = colmap::RandomUniformReal(-0.3, 0.3);
+    int_normal[1] = colmap::RandomUniformReal(-0.3, 0.3);
+    int_normal[2] = colmap::RandomUniformReal(0.7, 1.3);
+    int_normal.normalize();
 
-    int_normal = Eigen::Vector3d::UnitZ();
+    // int_normal = Eigen::Vector3d::UnitZ();
 
-    std::vector<double> flatport_params = {int_normal[0],
-                                           int_normal[1],
-                                           int_normal[2],
-                                           0.01,
-                                           0.007,
-                                           1.0,
-                                           1.47,
-                                           1.334};
+    std::vector<double> flatport_params = {
+        int_normal[0], int_normal[1], int_normal[2], 2.0, 1.0, 1.0, 5.3, 3.7};
     camera.SetRefracParams(flatport_params);
 
     const size_t kNumPoints = 200;
-    
-    for (size_t i = 0; i < num_points; i++) {
-      Eigen::Vector2d point2D_refrac;
-      point2D_refrac.x() = colmap::RandomUniformReal(
-          0.5, static_cast<double>(camera.Width()) - 0.5);
-      point2D_refrac.y() = colmap::RandomUniformReal(
-          0.5, static_cast<double>(camera.Height()) - 0.5);
 
-      colmap::Ray3D ray_refrac = camera.CamFromImgRefrac(point2D_refrac);
-      const double d = colmap::RandomUniformReal(0.5, 10.0);
+    // NOLINTNEXTLINE(clang-analyzer-security.FloatLoopCounter)
+    for (double qx = 0; qx < 0.4; qx += 0.1) {
+      // NOLINTNEXTLINE(clang-analyzer-security.FloatLoopCounter)
+      for (double tx = 0; tx < 0.5; tx += 0.1) {
+        Rigid3d cam2_from_cam1_gt(Eigen::Quaterniond(1, qx, 0, 0).normalized(),
+                                  Eigen::Vector3d(tx, 0.1, 0));
 
-      Eigen::Vector3d point3D = ray_refrac.At(d);
+        std::vector<Eigen::Vector2d> points2D1_refrac;
+        std::vector<Eigen::Vector2d> points2D2_refrac;
 
-      Eigen::Quaterniond virtual_from_real_rotation =
-          camera.VirtualFromRealRotation();
-      Eigen::Vector3d virtual_cam_center =
-          camera.VirtualCameraCenter(point2D_refrac);
+        points2D1_refrac.reserve(kNumPoints);
+        points2D2_refrac.reserve(kNumPoints);
 
-      Eigen::Vector3d virtual_from_real_translation =
-          virtual_from_real_rotation * -virtual_cam_center;
+        std::cout << "Generating data ... " << std::endl;
+        size_t cnt = 0;
+        while (cnt < kNumPoints) {
+          // Randomly generate 3D points.
+          const double u = RandomUniformReal(-2.0, 2.0);
+          const double v = RandomUniformReal(-2.0, 2.0);
+          const double w = RandomUniformReal(0.5, 5.5);
 
-      Rigid3d virtual_from_real(virtual_from_real_rotation,
-                                virtual_from_real_translation);
+          Eigen::Vector3d point3D(u, v, w);
+          // check for projection.
+          Eigen::Vector2d point2D1 = camera.ImgFromCamRefrac(point3D);
+          Eigen::Vector2d point2D2 =
+              camera.ImgFromCamRefrac(cam2_from_cam1_gt * point3D);
 
-      Eigen::Vector3d point3D_v = virtual_from_real * point3D;
+          // Points must be visible by the camera.
+          if (point2D1.x() < 0 || point2D1.x() > camera.Width() ||
+              point2D1.y() < 0 || point2D1.y() > camera.Height()) {
+            continue;
+          }
+          if (point2D2.x() < 0 || point2D2.x() > camera.Width() ||
+              point2D2.y() < 0 || point2D2.y() > camera.Height()) {
+            continue;
+          }
 
-      Camera virtual_camera =
-          camera.VirtualCamera(point2D_refrac, point3D_v.hnormalized());
+          points2D1_refrac.push_back(point2D1);
+          points2D2_refrac.push_back(point2D2);
+          cnt++;
+        }
 
-      std::cout
-          << "image point: " << point2D_refrac.transpose()
-          << " -- virtual point2D: "
-          << virtual_camera.ImgFromCam(point3D_v.hnormalized()).transpose()
-          << std::endl;
+        // Construct virtual cameras for two-view geometry estimation.
+        std::vector<Camera> virtual_cameras1;
+        Eigen::Quaterniond virtual_from_real_rotation1;
+        std::vector<Eigen::Vector3d> virtual_from_real_translations1;
+
+        std::vector<Camera> virtual_cameras2;
+        Eigen::Quaterniond virtual_from_real_rotation2;
+        std::vector<Eigen::Vector3d> virtual_from_real_translations2;
+
+        virtual_cameras1.reserve(kNumPoints);
+        virtual_from_real_translations1.reserve(kNumPoints);
+
+        virtual_cameras2.reserve(kNumPoints);
+        virtual_from_real_translations2.reserve(kNumPoints);
+
+        virtual_from_real_rotation1 = camera.VirtualFromRealRotation();
+        virtual_from_real_rotation2 = camera.VirtualFromRealRotation();
+
+        for (const Eigen::Vector2d& point : points2D1_refrac) {
+          const Ray3D ray_refrac = camera.CamFromImgRefrac(point);
+          const Eigen::Vector3d virtual_cam_center =
+              camera.VirtualCameraCenter(point);
+          virtual_from_real_translations1.push_back(
+              virtual_from_real_rotation1 * -virtual_cam_center);
+          virtual_cameras1.push_back(
+              camera.VirtualCamera(point, ray_refrac.dir.hnormalized()));
+        }
+
+        for (const Eigen::Vector2d& point : points2D2_refrac) {
+          const Ray3D ray_refrac = camera.CamFromImgRefrac(point);
+          const Eigen::Vector3d virtual_cam_center =
+              camera.VirtualCameraCenter(point);
+          virtual_from_real_translations2.push_back(
+              virtual_from_real_rotation2 * -virtual_cam_center);
+          virtual_cameras2.push_back(
+              camera.VirtualCamera(point, ray_refrac.dir.hnormalized()));
+        }
+
+        FeatureMatches matches;
+        matches.reserve(kNumPoints);
+
+        for (point2D_t i = 0; i < kNumPoints; ++i) {
+          matches.emplace_back(i, i);
+        }
+        std::cout << "Estimate ... " << std::endl;
+
+        TwoViewGeometryOptions two_view_geometry_options;
+
+        TwoViewGeometry two_view_geometry =
+            EstimateRefractiveTwoViewGeometry(points2D1_refrac,
+                                              virtual_cameras1,
+                                              virtual_from_real_rotation1,
+                                              virtual_from_real_translations1,
+                                              points2D2_refrac,
+                                              virtual_cameras2,
+                                              virtual_from_real_rotation2,
+                                              virtual_from_real_translations2,
+                                              matches,
+                                              two_view_geometry_options);
+
+        std::cout << "Matrix norm: "
+                  << (cam2_from_cam1_gt.ToMatrix() -
+                      two_view_geometry.cam2_from_cam1.ToMatrix())
+                         .norm()
+                  << std::endl;
+        std::cout << "Inlier ratio: "
+                  << static_cast<double>(
+                         two_view_geometry.inlier_matches.size()) /
+                         static_cast<double>(kNumPoints)
+                  << std::endl;
+      }
     }
   }
   return true;
