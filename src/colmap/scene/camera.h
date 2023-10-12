@@ -192,7 +192,7 @@ class Camera {
   // Return the rotation from the real camera to virtual camera.
   Eigen::Quaterniond VirtualFromRealRotation() const;
 
-  Eigen::Vector3d VirtualCameraCenter(const Eigen::Vector2d& image_point) const;
+  Eigen::Vector3d VirtualCameraCenter(const Ray3D& ray_refrac) const;
 
   // If the camera is refractive, this function returns a simple pinhole virtual
   // camera which observes the `cam_point` from the `image_point` perspectively.

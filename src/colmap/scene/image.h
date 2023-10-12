@@ -214,13 +214,6 @@ class Image {
   // Data structure to compute the distribution of triangulated correspondences
   // in the image. Note that this structure is only usable after `SetUp`.
   VisibilityPyramid point3D_visibility_pyramid_;
-
-  // All image points in virtual coordinate for the refractive reconstruction.
-  std::vector<struct Point2D> virtual_points2D_;
-
-  // Virtual from real transformations, one translation per point.
-  Eigen::Quaterniond virtual_from_real_rotation_;
-  std::vector<Eigen::Vector3d> virtual_from_real_translations_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

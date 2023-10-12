@@ -634,12 +634,10 @@ bool DetectWatermark(const Camera& camera1,
 TwoViewGeometry EstimateRefractiveTwoViewGeometry(
     const std::vector<Eigen::Vector2d>& points1,
     const std::vector<Camera>& virtual_cameras1,
-    const Eigen::Quaterniond& virtual_from_real_rotation1,
-    const std::vector<Eigen::Vector3d> virtual_from_real_translations1,
+    const std::vector<Rigid3d>& virtual_from_reals1,
     const std::vector<Eigen::Vector2d>& points2,
     const std::vector<Camera>& virtual_cameras2,
-    const Eigen::Quaterniond& virtual_from_real_rotation2,
-    const std::vector<Eigen::Vector3d> virtual_from_real_translations2,
+    const std::vector<Rigid3d>& virtual_from_reals2,
     const FeatureMatches& matches,
     const TwoViewGeometryOptions& options) {
   TwoViewGeometry geometry;
@@ -655,8 +653,7 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
   std::vector<GR6PEstimator::Y_t> matched_points2(matches.size());
   for (size_t i = 0; i < matches.size(); ++i) {
     matched_points1[i].cam_from_rig =
-        Rigid3d(virtual_from_real_rotation1,
-                virtual_from_real_translations1[matches[i].point2D_idx1]);
+        virtual_from_reals1[matches[i].point2D_idx1];
     matched_points1[i].ray_in_cam =
         virtual_cameras1[matches[i].point2D_idx1]
             .CamFromImg(points1[matches[i].point2D_idx1])
@@ -664,8 +661,7 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
             .normalized();
 
     matched_points2[i].cam_from_rig =
-        Rigid3d(virtual_from_real_rotation2,
-                virtual_from_real_translations2[matches[i].point2D_idx2]);
+        virtual_from_reals2[matches[i].point2D_idx2];
     matched_points2[i].ray_in_cam =
         virtual_cameras2[matches[i].point2D_idx2]
             .CamFromImg(points2[matches[i].point2D_idx2])
@@ -696,6 +692,88 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
   geometry.inlier_matches = ExtractInlierMatches(
       matches, report.support.num_inliers, report.inlier_mask);
 
+  if (options.compute_relative_pose) {
+    // Extract tri_angle after estimating the two-view geometry.
+    std::vector<double> tri_angles;
+
+    std::vector<Eigen::Vector2d> inlier_points1_normalized;
+    std::vector<Eigen::Vector2d> inlier_points2_normalized;
+
+    std::vector<Eigen::Matrix3x4d> inlier_virtual_proj_matrix1;
+    std::vector<Eigen::Matrix3x4d> inlier_virtual_proj_matrix2;
+
+    inlier_points1_normalized.reserve(geometry.inlier_matches.size());
+    inlier_points2_normalized.reserve(geometry.inlier_matches.size());
+
+    inlier_virtual_proj_matrix1.reserve(geometry.inlier_matches.size());
+    inlier_virtual_proj_matrix2.reserve(geometry.inlier_matches.size());
+
+    const Rigid3d real1_from_world;
+    const Rigid3d real2_from_world = geometry.cam2_from_cam1;
+
+    for (const auto& match : geometry.inlier_matches) {
+      const Camera& virtual_camera1 = virtual_cameras1[match.point2D_idx1];
+      const Camera& virtual_camera2 = virtual_cameras2[match.point2D_idx2];
+
+      inlier_points1_normalized.push_back(
+          virtual_camera1.CamFromImg(points1[match.point2D_idx1]));
+      inlier_points2_normalized.push_back(
+          virtual_camera2.CamFromImg(points2[match.point2D_idx2]));
+
+      const Rigid3d virtual1_from_world =
+          virtual_from_reals1[match.point2D_idx1] * real1_from_world;
+      const Rigid3d virtual2_from_world =
+          virtual_from_reals2[match.point2D_idx2] * real2_from_world;
+
+      inlier_virtual_proj_matrix1.push_back(virtual1_from_world.ToMatrix());
+      inlier_virtual_proj_matrix2.push_back(virtual2_from_world.ToMatrix());
+    }
+
+    const double kMinDepth = std::numeric_limits<double>::epsilon();
+
+    auto CalculateDepth = [](const Eigen::Matrix3x4d& cam_from_world,
+                             const Eigen::Vector3d& point3D) {
+      const double proj_z = cam_from_world.row(2).dot(point3D.homogeneous());
+      return proj_z * cam_from_world.col(2).norm();
+    };
+
+    for (size_t i = 0; i < geometry.inlier_matches.size(); ++i) {
+      const double max_depth =
+          1000.0f *
+          (inlier_virtual_proj_matrix2[i].block<3, 3>(0, 0).transpose() *
+           inlier_virtual_proj_matrix2[i].col(3))
+              .norm();
+      const Eigen::Vector3d point3D =
+          TriangulatePoint(inlier_virtual_proj_matrix1[i],
+                           inlier_virtual_proj_matrix2[i],
+                           inlier_points1_normalized[i],
+                           inlier_points2_normalized[i]);
+
+      const double depth1 =
+          CalculateDepth(inlier_virtual_proj_matrix1[i], point3D);
+
+      if (depth1 > kMinDepth && depth1 < max_depth) {
+        const double depth2 =
+            CalculateDepth(inlier_virtual_proj_matrix2[i], point3D);
+        if (depth2 > kMinDepth && depth2 < max_depth) {
+          const Eigen::Vector3d proj_center1 =
+              -inlier_virtual_proj_matrix1[i].block<3, 3>(0, 0).transpose() *
+              inlier_virtual_proj_matrix1[i].col(3);
+          const Eigen::Vector3d proj_center2 =
+              -inlier_virtual_proj_matrix2[i].block<3, 3>(0, 0).transpose() *
+              inlier_virtual_proj_matrix2[i].col(3);
+          tri_angles.push_back(
+              CalculateTriangulationAngle(proj_center1, proj_center2, point3D));
+        }
+      }
+    }
+
+    if (tri_angles.empty()) {
+      geometry.tri_angle = 0;
+    } else {
+      geometry.tri_angle = Median(tri_angles);
+    }
+  }
   return geometry;
 }
 

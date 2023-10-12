@@ -121,6 +121,9 @@ class IncrementalMapper {
     // Whether to use pose prior in reconstruction.
     bool use_pose_prior = false;
 
+    // Whether to use refractive camera model in reconstruction.
+    bool enable_refraction = false;
+
     // Method to find and select next best image to register.
     enum class ImageSelectionMethod {
       MAX_VISIBLE_POINTS_NUM,
@@ -233,9 +236,6 @@ class IncrementalMapper {
 
   // Clear the collection of changed 3D points.
   void ClearModifiedPoints3D();
-
-  // Compute virtual camera transformations if refraction is eanbled.
-  void ComputeVirtualCameraTransformations();
 
  private:
   // Find seed images for incremental reconstruction. Suitable seed images have

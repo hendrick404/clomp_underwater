@@ -346,9 +346,7 @@ Eigen::Quaterniond Camera::VirtualFromRealRotation() const {
       .normalized();
 }
 
-Eigen::Vector3d Camera::VirtualCameraCenter(
-    const Eigen::Vector2d& image_point) const {
-  Ray3D ray_refrac = CamFromImgRefrac(image_point);
+Eigen::Vector3d Camera::VirtualCameraCenter(const Ray3D& ray_refrac) const {
   Eigen::Vector3d virtual_cam_center;
   IntersectLinesWithTolerance<double>(Eigen::Vector3d::Zero(),
                                       RefractionAxis(),

@@ -807,8 +807,6 @@ void IncrementalMapper::ClearModifiedPoints3D() {
   triangulator_->ClearModifiedPoints3D();
 }
 
-void IncrementalMapper::ComputeVirtualCameraTransformations() {}
-
 std::vector<image_t> IncrementalMapper::FindFirstInitialImage(
     const Options& options) const {
   // Struct to hold meta-data for ranking images.
@@ -1187,12 +1185,65 @@ bool IncrementalMapper::EstimateInitialTwoViewGeometry(
   TwoViewGeometryOptions two_view_geometry_options;
   two_view_geometry_options.ransac_options.min_num_trials = 30;
   two_view_geometry_options.ransac_options.max_error = options.init_max_error;
-  TwoViewGeometry two_view_geometry = EstimateCalibratedTwoViewGeometry(
-      camera1, points1, camera2, points2, matches, two_view_geometry_options);
+  TwoViewGeometry two_view_geometry;
 
-  if (!EstimateTwoViewGeometryPose(
-          camera1, points1, camera2, points2, &two_view_geometry)) {
-    return false;
+  if (!options.enable_refraction) {
+    two_view_geometry = EstimateCalibratedTwoViewGeometry(
+        camera1, points1, camera2, points2, matches, two_view_geometry_options);
+
+    if (!EstimateTwoViewGeometryPose(
+            camera1, points1, camera2, points2, &two_view_geometry)) {
+      return false;
+    }
+  } else {
+    std::vector<Camera> virtual_cameras1;
+    std::vector<Camera> virtual_cameras2;
+    Eigen::Quaterniond virtual_from_real_rotation1;
+    Eigen::Quaterniond virtual_from_real_rotation2;
+    std::vector<Rigid3d> virtual_from_reals1;
+    std::vector<Rigid3d> virtual_from_reals2;
+
+    virtual_cameras1.reserve(points1.size());
+    virtual_cameras2.reserve(points2.size());
+    virtual_from_reals1.reserve(points1.size());
+    virtual_from_reals2.reserve(points2.size());
+
+    virtual_from_real_rotation1 = camera1.VirtualFromRealRotation();
+    virtual_from_real_rotation2 = camera2.VirtualFromRealRotation();
+
+    for (const Eigen::Vector2d& point : points1) {
+      const Ray3D ray_refrac = camera1.CamFromImgRefrac(point);
+      const Eigen::Vector3d virtual_cam_center =
+          camera1.VirtualCameraCenter(ray_refrac);
+      virtual_from_reals1.push_back(
+          Rigid3d(virtual_from_real_rotation1,
+                  virtual_from_real_rotation1 * -virtual_cam_center));
+      virtual_cameras1.push_back(
+          camera1.VirtualCamera(point, ray_refrac.dir.hnormalized()));
+    }
+
+    for (const Eigen::Vector2d& point : points2) {
+      const Ray3D ray_refrac = camera2.CamFromImgRefrac(point);
+      const Eigen::Vector3d virtual_cam_center =
+          camera1.VirtualCameraCenter(ray_refrac);
+      virtual_from_reals2.push_back(
+          Rigid3d(virtual_from_real_rotation2,
+                  virtual_from_real_rotation2 * -virtual_cam_center));
+      virtual_cameras2.push_back(
+          camera2.VirtualCamera(point, ray_refrac.dir.hnormalized()));
+    }
+
+    std::cout << "Estimate refractive two-view geometry" << std::endl;
+    two_view_geometry_options.compute_relative_pose = true;
+    two_view_geometry =
+        EstimateRefractiveTwoViewGeometry(points1,
+                                          virtual_cameras1,
+                                          virtual_from_reals1,
+                                          points2,
+                                          virtual_cameras2,
+                                          virtual_from_reals2,
+                                          matches,
+                                          two_view_geometry_options);
   }
 
   if (static_cast<int>(two_view_geometry.inlier_matches.size()) >=
@@ -1204,7 +1255,13 @@ bool IncrementalMapper::EstimateInitialTwoViewGeometry(
     prev_init_two_view_geometry_ = two_view_geometry;
     return true;
   }
-
+  std::cout << "Inlier matches: " << two_view_geometry.inlier_matches.size()
+            << std::endl;
+  std::cout << "Max forward motion: "
+            << std::abs(two_view_geometry.cam2_from_cam1.translation.z())
+            << std::endl;
+  std::cout << "Tri angle: " << RadToDeg(two_view_geometry.tri_angle)
+            << std::endl;
   return false;
 }
 

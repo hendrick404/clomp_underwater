@@ -94,17 +94,17 @@ int main(int argc, char* argv[]) {
         // Construct virtual cameras for two-view geometry estimation.
         std::vector<Camera> virtual_cameras1;
         Eigen::Quaterniond virtual_from_real_rotation1;
-        std::vector<Eigen::Vector3d> virtual_from_real_translations1;
+        std::vector<Rigid3d> virtual_from_reals1;
 
         std::vector<Camera> virtual_cameras2;
         Eigen::Quaterniond virtual_from_real_rotation2;
-        std::vector<Eigen::Vector3d> virtual_from_real_translations2;
+        std::vector<Rigid3d> virtual_from_reals2;
 
         virtual_cameras1.reserve(kNumPoints);
-        virtual_from_real_translations1.reserve(kNumPoints);
+        virtual_from_reals1.reserve(kNumPoints);
 
         virtual_cameras2.reserve(kNumPoints);
-        virtual_from_real_translations2.reserve(kNumPoints);
+        virtual_from_reals2.reserve(kNumPoints);
 
         virtual_from_real_rotation1 = camera.VirtualFromRealRotation();
         virtual_from_real_rotation2 = camera.VirtualFromRealRotation();
@@ -112,9 +112,10 @@ int main(int argc, char* argv[]) {
         for (const Eigen::Vector2d& point : points2D1_refrac) {
           const Ray3D ray_refrac = camera.CamFromImgRefrac(point);
           const Eigen::Vector3d virtual_cam_center =
-              camera.VirtualCameraCenter(point);
-          virtual_from_real_translations1.push_back(
-              virtual_from_real_rotation1 * -virtual_cam_center);
+              camera.VirtualCameraCenter(ray_refrac);
+          virtual_from_reals1.push_back(
+              Rigid3d(virtual_from_real_rotation1,
+                      virtual_from_real_rotation1 * -virtual_cam_center));
           virtual_cameras1.push_back(
               camera.VirtualCamera(point, ray_refrac.dir.hnormalized()));
         }
@@ -122,9 +123,10 @@ int main(int argc, char* argv[]) {
         for (const Eigen::Vector2d& point : points2D2_refrac) {
           const Ray3D ray_refrac = camera.CamFromImgRefrac(point);
           const Eigen::Vector3d virtual_cam_center =
-              camera.VirtualCameraCenter(point);
-          virtual_from_real_translations2.push_back(
-              virtual_from_real_rotation2 * -virtual_cam_center);
+              camera.VirtualCameraCenter(ray_refrac);
+          virtual_from_reals2.push_back(
+              Rigid3d(virtual_from_real_rotation2,
+                      virtual_from_real_rotation2 * -virtual_cam_center));
           virtual_cameras2.push_back(
               camera.VirtualCamera(point, ray_refrac.dir.hnormalized()));
         }
@@ -142,12 +144,10 @@ int main(int argc, char* argv[]) {
         TwoViewGeometry two_view_geometry =
             EstimateRefractiveTwoViewGeometry(points2D1_refrac,
                                               virtual_cameras1,
-                                              virtual_from_real_rotation1,
-                                              virtual_from_real_translations1,
+                                              virtual_from_reals1,
                                               points2D2_refrac,
                                               virtual_cameras2,
-                                              virtual_from_real_rotation2,
-                                              virtual_from_real_translations2,
+                                              virtual_from_reals2,
                                               matches,
                                               two_view_geometry_options);
 

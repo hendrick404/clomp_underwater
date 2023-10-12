@@ -227,6 +227,7 @@ IncrementalMapper::Options IncrementalMapperOptions::Mapper() const {
   options.local_ba_num_images = ba_local_num_images;
   options.fix_existing_images = fix_existing_images;
   options.use_pose_prior = use_pose_prior;
+  options.enable_refraction = enable_refraction;
   return options;
 }
 
