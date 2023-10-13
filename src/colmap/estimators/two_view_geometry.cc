@@ -671,7 +671,7 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
 
   RANSACOptions ransac_options_copy = options.ransac_options;
   // Give it more iterations for RANSAC.
-  ransac_options_copy.max_num_trials = std::numeric_limits<int>::max();
+  ransac_options_copy.max_num_trials *= 10;
 
   ransac_options_copy.max_error =
       (virtual_cameras1[0].CamFromImgThreshold(ransac_options_copy.max_error) +

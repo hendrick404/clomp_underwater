@@ -1228,12 +1228,21 @@ bool IncrementalMapper::EstimateInitialTwoViewGeometry(
 
   if (static_cast<int>(two_view_geometry.inlier_matches.size()) >=
           options.init_min_num_inliers &&
-      std::abs(two_view_geometry.cam2_from_cam1.translation.z()) <
-          options.init_max_forward_motion &&
       two_view_geometry.tri_angle > DegToRad(options.init_min_tri_angle)) {
-    prev_init_image_pair_id_ = image_pair_id;
-    prev_init_two_view_geometry_ = two_view_geometry;
-    return true;
+    if (!options.enable_refraction) {
+      if (std::abs(two_view_geometry.cam2_from_cam1.translation.z()) <
+          options.init_max_forward_motion) {
+        prev_init_image_pair_id_ = image_pair_id;
+        prev_init_two_view_geometry_ = two_view_geometry;
+        return true;
+      } else {
+        return false;
+      }
+    } else {
+      prev_init_image_pair_id_ = image_pair_id;
+      prev_init_two_view_geometry_ = two_view_geometry;
+      return true;
+    }
   }
 
   return false;

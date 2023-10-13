@@ -1,5 +1,4 @@
 #include "colmap/estimators/generalized_pose.h"
-#include "colmap/estimators/two_view_geometry.h"
 #include "colmap/geometry/rigid3.h"
 #include "colmap/math/math.h"
 #include "colmap/math/random.h"
@@ -103,15 +102,15 @@ void GenerateRandom3D2DPoints(const Camera& camera,
   // }
 }
 
-size_t EstimatePose(colmap::Camera& camera,
+size_t EstimatePose(Camera& camera,
                     const PointsData& points_data,
-                    colmap::Rigid3d& cam_from_world,
+                    Rigid3d& cam_from_world,
                     bool is_refractive) {
   // Only refine / estimate focal length, if no focal length was specified
   // (manually or through EXIF) and if it was not already estimated previously
   // from another image (when multiple images share the same camera
   // parameters)
-  colmap::AbsolutePoseEstimationOptions abs_pose_options;
+  AbsolutePoseEstimationOptions abs_pose_options;
   abs_pose_options.num_threads = -1;
   abs_pose_options.num_focal_length_samples = 30;
   abs_pose_options.min_focal_length_ratio = 0.1;
@@ -129,13 +128,13 @@ size_t EstimatePose(colmap::Camera& camera,
   std::vector<char> inlier_mask;
 
   if (!is_refractive) {
-    if (!colmap::EstimateAbsolutePose(abs_pose_options,
-                                      points_data.points2D,
-                                      points_data.points3D,
-                                      &cam_from_world,
-                                      &camera,
-                                      &num_inliers,
-                                      &inlier_mask)) {
+    if (!EstimateAbsolutePose(abs_pose_options,
+                              points_data.points2D,
+                              points_data.points3D,
+                              &cam_from_world,
+                              &camera,
+                              &num_inliers,
+                              &inlier_mask)) {
       std::cerr << "ERROR: Pose estimation failed" << std::endl;
       return 0;
     }
@@ -314,12 +313,12 @@ void Evaluate(Camera& camera,
 }
 
 int main(int argc, char* argv[]) {
-  colmap::SetPRNGSeed(time(NULL));
+  SetPRNGSeed(time(NULL));
 
   std::cout << "Setup some realistic camera model" << std::endl;
 
   // Camera parameters coming from Anton 131 map.
-  //   colmap::Camera camera;
+  //   Camera camera;
   //   camera.SetWidth(4104);
   //   camera.SetHeight(3006);
   //   camera.SetModelIdFromName("METASHAPE_FISHEYE");
@@ -333,7 +332,7 @@ int main(int argc, char* argv[]) {
   //                                 0.041314184080814435,
   //                                 0.00012198372904429465,
   //                                 0.00051849746014895923};
-  colmap::Camera camera;
+  Camera camera;
   camera.SetWidth(2048);
   camera.SetHeight(1536);
   camera.SetModelIdFromName("PINHOLE");
@@ -341,26 +340,44 @@ int main(int argc, char* argv[]) {
       1300.900000, 1300.900000, 1024.000000, 768.000000};
   camera.SetParams(params);
 
-  // Flatport setup.
-  camera.SetRefracModelIdFromName("FLATPORT");
-  Eigen::Vector3d int_normal;
-  int_normal[0] = colmap::RandomUniformReal(-0.3, 0.3);
-  int_normal[1] = colmap::RandomUniformReal(-0.3, 0.3);
-  int_normal[2] = colmap::RandomUniformReal(0.7, 1.3);
+  // // Flatport setup.
+  // camera.SetRefracModelIdFromName("FLATPORT");
+  // Eigen::Vector3d int_normal;
+  // int_normal[0] = RandomUniformReal(-0.3, 0.3);
+  // int_normal[1] = RandomUniformReal(-0.3, 0.3);
+  // int_normal[2] = RandomUniformReal(0.7, 1.3);
 
-  int_normal.normalize();
+  // int_normal.normalize();
 
-  int_normal = Eigen::Vector3d::UnitZ();
+  // int_normal = Eigen::Vector3d::UnitZ();
 
-  std::vector<double> flatport_params = {int_normal[0],
-                                         int_normal[1],
-                                         int_normal[2],
-                                         0.01,
+  // std::vector<double> flatport_params = {int_normal[0],
+  //                                        int_normal[1],
+  //                                        int_normal[2],
+  //                                        0.01,
+  //                                        0.007,
+  //                                        1.0,
+  //                                        1.52,
+  //                                        1.334};
+  // camera.SetRefracParams(flatport_params);
+
+  // Domeport setup.
+  camera.SetRefracModelIdFromName("DOMEPORT");
+  Eigen::Vector3d decentering;
+  decentering[0] = RandomUniformReal(-0.003, 0.003);
+  decentering[1] = RandomUniformReal(-0.003, 0.003);
+  decentering[2] = RandomUniformReal(-0.01, 0.01);
+  ;
+
+  std::vector<double> domeport_params = {decentering[0],
+                                         decentering[1],
+                                         decentering[2],
+                                         0.05,
                                          0.007,
                                          1.0,
                                          1.52,
                                          1.334};
-  camera.SetRefracParams(flatport_params);
+  camera.SetRefracParams(domeport_params);
 
   // Generate simulated point data.
   const size_t num_points = 200;
@@ -370,7 +387,7 @@ int main(int argc, char* argv[]) {
       "/home/mshe/workspace/omv_src/colmap-project/refrac_sfm_eval/data/"
       "abs_pose/";
   std::stringstream ss;
-  ss << output_dir << "/eval_refrac_abs_pose_num_points_" << num_points
+  ss << output_dir << "/eval_refrac_abs_pose_domeport_num_points_" << num_points
      << "_inlier_ratio_" << inlier_ratio << ".txt";
   std::string output_path = ss.str();
 

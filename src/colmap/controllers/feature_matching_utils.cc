@@ -332,7 +332,7 @@ class VerifierWorker : public Thread {
           camera1.ComputeVirtuals(
               points1, virtual_cameras1, virtual_from_reals1);
           camera1.ComputeVirtuals(
-              points1, virtual_cameras2, virtual_from_reals2);
+              points2, virtual_cameras2, virtual_from_reals2);
 
           data.two_view_geometry =
               EstimateRefractiveTwoViewGeometry(points1,
