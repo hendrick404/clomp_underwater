@@ -201,7 +201,7 @@ void RelativePoseError(const colmap::Rigid3d& cam2_from_cam1_gt,
     const double baseline_gt =
         (cam2_from_cam1_gt.rotation.inverse() * -cam2_from_cam1_gt.translation)
             .norm();
-    scale_error = std::abs(baseline_gt - baseline_est);
+    scale_error = (std::abs(baseline_gt - baseline_est) / baseline_gt) * 100.0;
   } else {
     scale_error = 0.0;
   }
