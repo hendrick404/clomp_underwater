@@ -20,26 +20,6 @@ struct PointsData {
   Rigid3d cam_from_world_gt;
 };
 
-void ConstructVirtualCameras(const Camera& camera,
-                             const std::vector<Eigen::Vector2d>& points2D,
-                             std::vector<Camera>& virtual_cameras,
-                             std::vector<Rigid3d>& virtual_from_reals) {
-  size_t num_points = points2D.size();
-  virtual_cameras.reserve(num_points);
-  virtual_from_reals.reserve(num_points);
-
-  Eigen::Quaterniond virtual_from_real_rotation =
-      camera.VirtualFromRealRotation();
-  for (const Eigen::Vector2d& point : points2D) {
-    Ray3D ray_refrac = camera.CamFromImgRefrac(point);
-    const Eigen::Vector3d virtual_cam_center =
-        camera.VirtualCameraCenter(ray_refrac);
-    virtual_from_reals.push_back(
-        Rigid3d(virtual_from_real_rotation,
-                virtual_from_real_rotation.inverse() * -virtual_cam_center));
-  }
-}
-
 void GenerateRandom3D2DPoints(const Camera& camera,
                               size_t num_points,
                               const Rigid3d& cam_from_world_gt,
@@ -97,10 +77,9 @@ void GenerateRandom3D2DPoints(const Camera& camera,
     cnt++;
   }
 
-  ConstructVirtualCameras(camera,
-                          points_data.points2D_refrac,
-                          points_data.virtual_cameras,
-                          points_data.virtual_from_reals);
+  camera.ComputeVirtuals(points_data.points2D_refrac,
+                         points_data.virtual_cameras,
+                         points_data.virtual_from_reals);
 
   // Generate a checkerboard like points data
   // const double square_size = 0.04;
@@ -335,170 +314,67 @@ void Evaluate(Camera& camera,
 }
 
 int main(int argc, char* argv[]) {
-  if (false) {
-    SetPRNGSeed(time(NULL));
-    // Camera parameters coming from Anton 131 map.
-    Camera camera;
-    camera.SetWidth(4104);
-    camera.SetHeight(3006);
-    camera.SetModelIdFromName("METASHAPE_FISHEYE");
-    std::vector<double> params = {2115.7964068878537,
-                                  2115.6679248258547,
-                                  2097.4832274550317,
-                                  1641.1207545881762,
-                                  -0.0047743457655361719,
-                                  0.053835104379748221,
-                                  -0.086202869606942054,
-                                  0.041314184080814435,
-                                  0.00012198372904429465,
-                                  0.00051849746014895923};
+  colmap::SetPRNGSeed(time(NULL));
 
-    // colmap::Camera camera;
-    // camera.SetWidth(2048);
-    // camera.SetHeight(1536);
-    // camera.SetModelIdFromName("PINHOLE");
-    // std::vector<double> params = {
-    //     500.900000, 500.900000, 1024.000000, 768.000000};
+  std::cout << "Setup some realistic camera model" << std::endl;
 
-    camera.SetParams(params);
+  // Camera parameters coming from Anton 131 map.
+  //   colmap::Camera camera;
+  //   camera.SetWidth(4104);
+  //   camera.SetHeight(3006);
+  //   camera.SetModelIdFromName("METASHAPE_FISHEYE");
+  //   std::vector<double> params = {2115.7964068878537,
+  //                                 2115.6679248258547,
+  //                                 2097.4832274550317,
+  //                                 1641.1207545881762,
+  //                                 -0.0047743457655361719,
+  //                                 0.053835104379748221,
+  //                                 -0.086202869606942054,
+  //                                 0.041314184080814435,
+  //                                 0.00012198372904429465,
+  //                                 0.00051849746014895923};
+  colmap::Camera camera;
+  camera.SetWidth(2048);
+  camera.SetHeight(1536);
+  camera.SetModelIdFromName("PINHOLE");
+  std::vector<double> params = {
+      1300.900000, 1300.900000, 1024.000000, 768.000000};
+  camera.SetParams(params);
 
-    // Flatport setup.
-    camera.SetRefracModelIdFromName("FLATPORT");
-    Eigen::Vector3d int_normal;
-    int_normal[0] = RandomUniformReal(-0.3, 0.3);
-    int_normal[1] = RandomUniformReal(-0.3, 0.3);
-    int_normal[2] = RandomUniformReal(0.7, 1.3);
-    int_normal.normalize();
+  // Flatport setup.
+  camera.SetRefracModelIdFromName("FLATPORT");
+  Eigen::Vector3d int_normal;
+  int_normal[0] = colmap::RandomUniformReal(-0.3, 0.3);
+  int_normal[1] = colmap::RandomUniformReal(-0.3, 0.3);
+  int_normal[2] = colmap::RandomUniformReal(0.7, 1.3);
 
-    // int_normal = Eigen::Vector3d::UnitZ();
+  int_normal.normalize();
 
-    std::vector<double> flatport_params = {
-        int_normal[0], int_normal[1], int_normal[2], 2.0, 1.0, 1.0, 5.3, 3.7};
-    camera.SetRefracParams(flatport_params);
+  int_normal = Eigen::Vector3d::UnitZ();
 
-    const size_t kNumPoints = 200;
+  std::vector<double> flatport_params = {int_normal[0],
+                                         int_normal[1],
+                                         int_normal[2],
+                                         0.01,
+                                         0.007,
+                                         1.0,
+                                         1.52,
+                                         1.334};
+  camera.SetRefracParams(flatport_params);
 
-    // NOLINTNEXTLINE(clang-analyzer-security.FloatLoopCounter)
-    for (double qx = 0; qx < 0.4; qx += 0.1) {
-      // NOLINTNEXTLINE(clang-analyzer-security.FloatLoopCounter)
-      for (double tx = 0; tx < 0.5; tx += 0.1) {
-        Rigid3d cam2_from_cam1_gt(Eigen::Quaterniond(1, qx, 0, 0).normalized(),
-                                  Eigen::Vector3d(tx, 0.1, 0));
+  // Generate simulated point data.
+  const size_t num_points = 200;
+  const double inlier_ratio = 0.7;
 
-        std::vector<Eigen::Vector2d> points2D1_refrac;
-        std::vector<Eigen::Vector2d> points2D2_refrac;
+  std::string output_dir =
+      "/home/mshe/workspace/omv_src/colmap-project/refrac_sfm_eval/data/"
+      "abs_pose/";
+  std::stringstream ss;
+  ss << output_dir << "/eval_refrac_abs_pose_num_points_" << num_points
+     << "_inlier_ratio_" << inlier_ratio << ".txt";
+  std::string output_path = ss.str();
 
-        points2D1_refrac.reserve(kNumPoints);
-        points2D2_refrac.reserve(kNumPoints);
+  Evaluate(camera, num_points, 1000, inlier_ratio, output_path);
 
-        std::cout << "Generating data ... " << std::endl;
-        size_t cnt = 0;
-        while (cnt < kNumPoints) {
-          // Randomly generate 3D points.
-          const double u = RandomUniformReal(-2.0, 2.0);
-          const double v = RandomUniformReal(-2.0, 2.0);
-          const double w = RandomUniformReal(0.5, 5.5);
-
-          Eigen::Vector3d point3D(u, v, w);
-          // check for projection.
-          Eigen::Vector2d point2D1 = camera.ImgFromCamRefrac(point3D);
-          Eigen::Vector2d point2D2 =
-              camera.ImgFromCamRefrac(cam2_from_cam1_gt * point3D);
-
-          // Points must be visible by the camera.
-          if (point2D1.x() < 0 || point2D1.x() > camera.Width() ||
-              point2D1.y() < 0 || point2D1.y() > camera.Height()) {
-            continue;
-          }
-          if (point2D2.x() < 0 || point2D2.x() > camera.Width() ||
-              point2D2.y() < 0 || point2D2.y() > camera.Height()) {
-            continue;
-          }
-
-          points2D1_refrac.push_back(point2D1);
-          points2D2_refrac.push_back(point2D2);
-          cnt++;
-        }
-
-        // Construct virtual cameras for two-view geometry estimation.
-        std::vector<Camera> virtual_cameras1;
-        Eigen::Quaterniond virtual_from_real_rotation1;
-        std::vector<Rigid3d> virtual_from_reals1;
-
-        std::vector<Camera> virtual_cameras2;
-        Eigen::Quaterniond virtual_from_real_rotation2;
-        std::vector<Rigid3d> virtual_from_reals2;
-
-        virtual_cameras1.reserve(kNumPoints);
-        virtual_from_reals1.reserve(kNumPoints);
-
-        virtual_cameras2.reserve(kNumPoints);
-        virtual_from_reals2.reserve(kNumPoints);
-
-        virtual_from_real_rotation1 = camera.VirtualFromRealRotation();
-        virtual_from_real_rotation2 = camera.VirtualFromRealRotation();
-
-        for (const Eigen::Vector2d& point : points2D1_refrac) {
-          const Ray3D ray_refrac = camera.CamFromImgRefrac(point);
-          const Eigen::Vector3d virtual_cam_center =
-              camera.VirtualCameraCenter(ray_refrac);
-          virtual_from_reals1.push_back(
-              Rigid3d(virtual_from_real_rotation1,
-                      virtual_from_real_rotation1 * -virtual_cam_center));
-          virtual_cameras1.push_back(
-              camera.VirtualCamera(point, ray_refrac.dir.hnormalized()));
-        }
-
-        for (const Eigen::Vector2d& point : points2D2_refrac) {
-          const Ray3D ray_refrac = camera.CamFromImgRefrac(point);
-          const Eigen::Vector3d virtual_cam_center =
-              camera.VirtualCameraCenter(ray_refrac);
-          virtual_from_reals2.push_back(
-              Rigid3d(virtual_from_real_rotation2,
-                      virtual_from_real_rotation2 * -virtual_cam_center));
-          virtual_cameras2.push_back(
-              camera.VirtualCamera(point, ray_refrac.dir.hnormalized()));
-        }
-
-        FeatureMatches matches;
-        matches.reserve(kNumPoints);
-
-        for (point2D_t i = 0; i < kNumPoints; ++i) {
-          matches.emplace_back(i, i);
-        }
-        std::cout << "Estimate ... " << std::endl;
-
-        TwoViewGeometryOptions two_view_geometry_options;
-
-        TwoViewGeometry two_view_geometry =
-            EstimateRefractiveTwoViewGeometry(points2D1_refrac,
-                                              virtual_cameras1,
-                                              virtual_from_reals1,
-                                              points2D2_refrac,
-                                              virtual_cameras2,
-                                              virtual_from_reals2,
-                                              matches,
-                                              two_view_geometry_options);
-
-        std::cout << "Matrix norm: "
-                  << (cam2_from_cam1_gt.ToMatrix() -
-                      two_view_geometry.cam2_from_cam1.ToMatrix())
-                         .norm()
-                  << std::endl;
-        std::cout << "Inlier ratio: "
-                  << static_cast<double>(
-                         two_view_geometry.inlier_matches.size()) /
-                         static_cast<double>(kNumPoints)
-                  << std::endl;
-      }
-    }
-  }
-
-  if (true) {
-    Eigen::Quaterniond rot = Eigen::Quaterniond::FromTwoVectors(
-        Eigen::Vector3d::UnitZ(), Eigen::Vector3d::UnitZ());
-
-    std::cout << "rot: " << rot.toRotationMatrix() << std::endl;
-  }
   return true;
 }

@@ -36,6 +36,8 @@
 
 namespace colmap {
 
+class Rigid3d;
+
 // Camera class that holds the intrinsic parameters. Cameras may be shared
 // between multiple images, e.g., if the same "physical" camera took multiple
 // pictures with the exact same lens and intrinsics (focal length, etc.).
@@ -198,6 +200,10 @@ class Camera {
   // camera which observes the `cam_point` from the `image_point` perspectively.
   Camera VirtualCamera(const Eigen::Vector2d& image_point,
                        const Eigen::Vector2d& cam_point) const;
+
+  void ComputeVirtuals(const std::vector<Eigen::Vector2d>& points2D,
+                       std::vector<Camera>& virtual_cameras,
+                       std::vector<Rigid3d>& virtual_from_reals) const;
 
  private:
   // The unique identifier of the camera. If the identifier is not specified
