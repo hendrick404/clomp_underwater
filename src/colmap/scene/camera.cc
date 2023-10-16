@@ -384,22 +384,31 @@ Camera Camera::VirtualCamera(const Eigen::Vector2d& image_point,
   return virtual_camera;
 }
 
+void Camera::ComputeVirtual(const Eigen::Vector2d& point2D,
+                            Camera& virtual_camera,
+                            Rigid3d& virtual_from_real) const {
+  Eigen::Quaterniond virtual_from_real_rotation = VirtualFromRealRotation();
+
+  const Ray3D ray_refrac = CamFromImgRefrac(point2D);
+  const Eigen::Vector3d virtual_cam_center = VirtualCameraCenter(ray_refrac);
+  virtual_from_real = Rigid3d(virtual_from_real_rotation,
+                              virtual_from_real_rotation * -virtual_cam_center);
+  virtual_camera = VirtualCamera(
+      point2D, (virtual_from_real_rotation * ray_refrac.dir).hnormalized());
+}
+
 void Camera::ComputeVirtuals(const std::vector<Eigen::Vector2d>& points2D,
                              std::vector<Camera>& virtual_cameras,
                              std::vector<Rigid3d>& virtual_from_reals) const {
-  Eigen::Quaterniond virtual_from_real_rotation = VirtualFromRealRotation();
-
   virtual_cameras.reserve(points2D.size());
   virtual_from_reals.reserve(points2D.size());
 
   for (const Eigen::Vector2d& point : points2D) {
-    const Ray3D ray_refrac = CamFromImgRefrac(point);
-    const Eigen::Vector3d virtual_cam_center = VirtualCameraCenter(ray_refrac);
-    virtual_from_reals.push_back(
-        Rigid3d(virtual_from_real_rotation,
-                virtual_from_real_rotation * -virtual_cam_center));
-    virtual_cameras.push_back(VirtualCamera(
-        point, (virtual_from_real_rotation * ray_refrac.dir).hnormalized()));
+    Rigid3d virtual_from_real;
+    Camera virtual_camera;
+    ComputeVirtual(point, virtual_camera, virtual_from_real);
+    virtual_from_reals.push_back(virtual_from_real);
+    virtual_cameras.push_back(virtual_camera);
   }
 }
 

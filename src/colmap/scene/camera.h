@@ -201,6 +201,10 @@ class Camera {
   Camera VirtualCamera(const Eigen::Vector2d& image_point,
                        const Eigen::Vector2d& cam_point) const;
 
+  void ComputeVirtual(const Eigen::Vector2d& point2D,
+                      Camera& virtual_camera,
+                      Rigid3d& virtual_from_real) const;
+
   void ComputeVirtuals(const std::vector<Eigen::Vector2d>& points2D,
                        std::vector<Camera>& virtual_cameras,
                        std::vector<Rigid3d>& virtual_from_reals) const;

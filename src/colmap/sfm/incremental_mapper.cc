@@ -340,23 +340,71 @@ bool IncrementalMapper::RegisterInitialImagePair(const Options& options,
   track.Element(0).image_id = image_id1;
   track.Element(1).image_id = image_id2;
   for (const auto& corr : corrs) {
-    const Eigen::Vector2d point2D1 =
-        camera1.CamFromImg(image1.Point2D(corr.point2D_idx1).xy);
-    const Eigen::Vector2d point2D2 =
-        camera2.CamFromImg(image2.Point2D(corr.point2D_idx2).xy);
-    const Eigen::Vector3d& xyz =
-        TriangulatePoint(cam_from_world1, cam_from_world2, point2D1, point2D2);
-    const double tri_angle =
-        CalculateTriangulationAngle(proj_center1, proj_center2, xyz);
-    if (tri_angle >= min_tri_angle_rad &&
-        HasPointPositiveDepth(cam_from_world1, xyz) &&
-        HasPointPositiveDepth(cam_from_world2, xyz)) {
-      track.Element(0).point2D_idx = corr.point2D_idx1;
-      track.Element(1).point2D_idx = corr.point2D_idx2;
-      reconstruction_->AddPoint3D(xyz, track);
+    if (!options.enable_refraction) {
+      // Non-refractive case.
+      const Eigen::Vector2d point2D1 =
+          camera1.CamFromImg(image1.Point2D(corr.point2D_idx1).xy);
+      const Eigen::Vector2d point2D2 =
+          camera2.CamFromImg(image2.Point2D(corr.point2D_idx2).xy);
+      const Eigen::Vector3d& xyz = TriangulatePoint(
+          cam_from_world1, cam_from_world2, point2D1, point2D2);
+      std::cout << "xyz: " << xyz.transpose() << std::endl;
+      const double tri_angle =
+          CalculateTriangulationAngle(proj_center1, proj_center2, xyz);
+      if (tri_angle >= min_tri_angle_rad &&
+          HasPointPositiveDepth(cam_from_world1, xyz) &&
+          HasPointPositiveDepth(cam_from_world2, xyz)) {
+        track.Element(0).point2D_idx = corr.point2D_idx1;
+        track.Element(1).point2D_idx = corr.point2D_idx2;
+        reconstruction_->AddPoint3D(xyz, track);
+      }
+    } else {
+      // Refractive case.
+      Camera virtual_camera1;
+      Camera virtual_camera2;
+      Rigid3d virtual_from_real1;
+      Rigid3d virtual_from_real2;
+      camera1.ComputeVirtual(image1.Point2D(corr.point2D_idx1).xy,
+                             virtual_camera1,
+                             virtual_from_real1);
+      camera2.ComputeVirtual(image2.Point2D(corr.point2D_idx2).xy,
+                             virtual_camera2,
+                             virtual_from_real2);
+
+      const Rigid3d virtual_from_world1 =
+          virtual_from_real1 * image1.CamFromWorld();
+      const Rigid3d virtual_from_world2 =
+          virtual_from_real2 * image2.CamFromWorld();
+
+      const Eigen::Matrix3x4d proj_matrix1 = virtual_from_world1.ToMatrix();
+      const Eigen::Matrix3x4d proj_matrix2 = virtual_from_world2.ToMatrix();
+      const Eigen::Vector3d virtual_proj_center1 =
+          virtual_from_world1.rotation.inverse() *
+          -virtual_from_world1.translation;
+      const Eigen::Vector3d virtual_proj_center2 =
+          virtual_from_world2.rotation.inverse() *
+          -virtual_from_world2.translation;
+
+      // Now do the same triangulation as above.
+
+      const Eigen::Vector2d point2D1 =
+          virtual_camera1.CamFromImg(image1.Point2D(corr.point2D_idx1).xy);
+      const Eigen::Vector2d point2D2 =
+          virtual_camera2.CamFromImg(image2.Point2D(corr.point2D_idx2).xy);
+      const Eigen::Vector3d& xyz =
+          TriangulatePoint(proj_matrix1, proj_matrix2, point2D1, point2D2);
+      std::cout << "xyz: " << xyz.transpose() << std::endl;
+      const double tri_angle = CalculateTriangulationAngle(
+          virtual_proj_center1, virtual_proj_center2, xyz);
+      if (tri_angle >= min_tri_angle_rad &&
+          HasPointPositiveDepth(proj_matrix1, xyz) &&
+          HasPointPositiveDepth(proj_matrix2, xyz)) {
+        track.Element(0).point2D_idx = corr.point2D_idx1;
+        track.Element(1).point2D_idx = corr.point2D_idx2;
+        reconstruction_->AddPoint3D(xyz, track);
+      }
     }
   }
-
   return true;
 }
 
@@ -628,7 +676,8 @@ IncrementalMapper::AdjustLocalBundle(
       }
     }
 
-    // Fix 7 DOF to avoid scale/rotation/translation drift in bundle adjustment.
+    // Fix 7 DOF to avoid scale/rotation/translation drift in bundle
+    // adjustment.
     if (local_bundle.size() == 1) {
       ba_config.SetConstantCamPose(local_bundle[0]);
       ba_config.SetConstantCamPositions(image_id, {0});
@@ -678,8 +727,8 @@ IncrementalMapper::AdjustLocalBundle(
   }
 
   // Filter both the modified images and all changed 3D points to make sure
-  // there are no outlier points in the model. This results in duplicate work as
-  // many of the provided 3D points may also be contained in the adjusted
+  // there are no outlier points in the model. This results in duplicate work
+  // as many of the provided 3D points may also be contained in the adjusted
   // images, but the filtering is not a bottleneck at this point.
   std::unordered_set<image_t> filter_image_ids;
   filter_image_ids.insert(image_id);
@@ -1000,8 +1049,8 @@ std::vector<image_t> IncrementalMapper::FindLocalBundle(
   std::vector<image_t> local_bundle_image_ids;
   local_bundle_image_ids.reserve(num_eff_images);
 
-  // If the number of overlapping images equals the number of desired images in
-  // the local bundle, then simply copy over the image identifiers.
+  // If the number of overlapping images equals the number of desired images
+  // in the local bundle, then simply copy over the image identifiers.
   if (overlapping_images.size() == num_eff_images) {
     for (const auto& overlapping_image : overlapping_images) {
       local_bundle_image_ids.push_back(overlapping_image.first);
@@ -1041,8 +1090,8 @@ std::vector<image_t> IncrementalMapper::FindLocalBundle(
     for (size_t overlapping_image_idx = 0;
          overlapping_image_idx < overlapping_images.size();
          ++overlapping_image_idx) {
-      // Check if the image has sufficient overlap. Since the images are ordered
-      // based on the overlap, we can just skip the remaining ones.
+      // Check if the image has sufficient overlap. Since the images are
+      // ordered based on the overlap, we can just skip the remaining ones.
       if (overlapping_images[overlapping_image_idx].second <
           selection_threshold.second) {
         break;
@@ -1187,7 +1236,7 @@ bool IncrementalMapper::EstimateInitialTwoViewGeometry(
   two_view_geometry_options.ransac_options.max_error = options.init_max_error;
   TwoViewGeometry two_view_geometry;
 
-  if (!options.enable_refraction) {
+  if (true) {
     two_view_geometry = EstimateCalibratedTwoViewGeometry(
         camera1, points1, camera2, points2, matches, two_view_geometry_options);
 

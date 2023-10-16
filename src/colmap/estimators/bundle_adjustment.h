@@ -81,6 +81,9 @@ struct BundleAdjustmentOptions {
   // Whether to optimize prior_from_cam during bundle adjustment.
   bool refine_prior_from_cam = false;
 
+  // Whether to use refractive camera model in reconstruction.
+  bool enable_refraction = false;
+
   // Ceres-Solver options.
   ceres::Solver::Options solver_options;
 

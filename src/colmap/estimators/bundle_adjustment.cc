@@ -33,6 +33,7 @@
 #include "colmap/geometry/covariance_transform.h"
 #include "colmap/scene/projection.h"
 #include "colmap/sensor/models.h"
+#include "colmap/sensor/models_refrac.h"
 #include "colmap/util/misc.h"
 #include "colmap/util/threading.h"
 #include "colmap/util/timer.h"
@@ -382,38 +383,88 @@ void BundleAdjuster::AddImageToProblem(const image_t image_id,
     ceres::CostFunction* cost_function = nullptr;
 
     if (constant_cam_pose) {
-      switch (camera.ModelId()) {
+      if (!options_.enable_refraction) {
+        // Non-refractive case.
+        switch (camera.ModelId()) {
 #define CAMERA_MODEL_CASE(CameraModel)                                        \
   case CameraModel::kModelId:                                                 \
     cost_function = ReprojErrorConstantPoseCostFunction<CameraModel>::Create( \
         image.CamFromWorld(), point2D.xy);                                    \
     break;
 
-        CAMERA_MODEL_SWITCH_CASES
+          CAMERA_MODEL_SWITCH_CASES
 
 #undef CAMERA_MODEL_CASE
-      }
+        }
 
-      problem_->AddResidualBlock(
-          cost_function, loss_function, point3D.XYZ().data(), camera_params);
+        problem_->AddResidualBlock(
+            cost_function, loss_function, point3D.XYZ().data(), camera_params);
+      } else {
+        // Refractive case.
+        double* refrac_params = camera.RefracParamsData();
+
+#define CAMERA_COMBINATION_MODEL_CASE(CameraRefracModel, CameraModel) \
+  if (camera.ModelId() == CameraModel::kModelId &&                    \
+      camera.RefracModelId() == CameraRefracModel::kRefracModelId) {  \
+    cost_function = ReprojErrorRefracConstantPoseCostFunction<        \
+        CameraRefracModel,                                            \
+        CameraModel>::Create(image.CamFromWorld(), point2D.xy);       \
+  } else
+
+        CAMERA_COMBINATION_MODEL_IF_ELSE_CASES
+
+#undef CAMERA_COMBINATION_MODEL_CASE
+
+        problem_->AddResidualBlock(cost_function,
+                                   loss_function,
+                                   point3D.XYZ().data(),
+                                   camera_params,
+                                   refrac_params);
+      }
     } else {
-      switch (camera.ModelId()) {
+      if (!options_.enable_refraction) {
+        // Non-refractive case.
+        switch (camera.ModelId()) {
 #define CAMERA_MODEL_CASE(CameraModel)                                        \
   case CameraModel::kModelId:                                                 \
     cost_function = ReprojErrorCostFunction<CameraModel>::Create(point2D.xy); \
     break;
 
-        CAMERA_MODEL_SWITCH_CASES
+          CAMERA_MODEL_SWITCH_CASES
 
 #undef CAMERA_MODEL_CASE
-      }
+        }
 
-      problem_->AddResidualBlock(cost_function,
-                                 loss_function,
-                                 cam_from_world_rotation,
-                                 cam_from_world_translation,
-                                 point3D.XYZ().data(),
-                                 camera_params);
+        problem_->AddResidualBlock(cost_function,
+                                   loss_function,
+                                   cam_from_world_rotation,
+                                   cam_from_world_translation,
+                                   point3D.XYZ().data(),
+                                   camera_params);
+      } else {
+        // Refractive case.
+        double* refrac_params = camera.RefracParamsData();
+
+#define CAMERA_COMBINATION_MODEL_CASE(CameraRefracModel, CameraModel)          \
+  if (camera.ModelId() == CameraModel::kModelId &&                             \
+      camera.RefracModelId() == CameraRefracModel::kRefracModelId) {           \
+    cost_function =                                                            \
+        ReprojErrorRefracCostFunction<CameraRefracModel, CameraModel>::Create( \
+            point2D.xy);                                                       \
+  } else
+
+        CAMERA_COMBINATION_MODEL_IF_ELSE_CASES
+
+#undef CAMERA_COMBINATION_MODEL_CASE
+
+        problem_->AddResidualBlock(cost_function,
+                                   loss_function,
+                                   cam_from_world_rotation,
+                                   cam_from_world_translation,
+                                   point3D.XYZ().data(),
+                                   camera_params,
+                                   refrac_params);
+      }
     }
   }
 
@@ -598,6 +649,17 @@ void BundleAdjuster::ParameterizeCameras(Reconstruction* reconstruction) {
                           const_camera_params,
                           problem_.get(),
                           camera.ParamsData());
+      }
+    }
+  }
+
+  if (options_.enable_refraction) {
+    // Currently, we don't optimize refrac parameters.
+    const bool const_refrac_params = true;
+    for (const camera_t camera_id : camera_ids_) {
+      Camera& camera = reconstruction->Camera(camera_id);
+      if (const_refrac_params) {
+        problem_->SetParameterBlockConstant(camera.RefracParamsData());
       }
     }
   }

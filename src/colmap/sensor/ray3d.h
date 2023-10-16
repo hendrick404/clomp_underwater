@@ -137,7 +137,7 @@ inline bool IntersectLinesWithTolerance(const Eigen::Matrix<T, 3, 1>& origin1,
                                         const Eigen::Matrix<T, 3, 1>& origin2,
                                         const Eigen::Matrix<T, 3, 1>& dir2,
                                         Eigen::Matrix<T, 3, 1>& intersection,
-                                        T tolerance = 1e-8) {
+                                        T tolerance = T(1e-8)) {
   // from (Pa - Pb).dot(v1) = 0 and (Pa - Pb).dot(v2) = 0
   Eigen::Matrix<T, 3, 1> o = origin1 - origin2;
   T a = dir1.dot(dir1);
@@ -146,7 +146,7 @@ inline bool IntersectLinesWithTolerance(const Eigen::Matrix<T, 3, 1>& origin1,
   T d = dir1.dot(o);
   T e = dir2.dot(o);
   T denom = b * b - a * c;
-  if (ceres::abs(denom) <= std::numeric_limits<double>::epsilon()) {
+  if (ceres::abs(denom) <= std::numeric_limits<T>::epsilon()) {
     // lines are paralllel
     intersection = origin1;
     return true;

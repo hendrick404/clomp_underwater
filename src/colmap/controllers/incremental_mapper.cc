@@ -265,6 +265,7 @@ BundleAdjustmentOptions IncrementalMapperOptions::LocalBundleAdjustment()
   options.use_pose_prior = use_pose_prior;
   options.use_global_pose_prior_std = ba_use_global_pose_prior_std;
   options.pose_prior_std = CSVToVector<double>(ba_pose_prior_std);
+  options.enable_refraction = enable_refraction;
   return options;
 }
 
@@ -293,6 +294,7 @@ BundleAdjustmentOptions IncrementalMapperOptions::GlobalBundleAdjustment()
   options.use_global_pose_prior_std = ba_use_global_pose_prior_std;
   options.pose_prior_std = CSVToVector<double>(ba_pose_prior_std);
   options.refine_prior_from_cam = ba_refine_prior_from_cam;
+  options.enable_refraction = enable_refraction;
   return options;
 }
 
