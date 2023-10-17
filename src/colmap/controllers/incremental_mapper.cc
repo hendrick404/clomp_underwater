@@ -237,6 +237,7 @@ IncrementalTriangulator::Options IncrementalMapperOptions::Triangulation()
   options.min_focal_length_ratio = min_focal_length_ratio;
   options.max_focal_length_ratio = max_focal_length_ratio;
   options.max_extra_param = max_extra_param;
+  options.enable_refraction = enable_refraction;
   return options;
 }
 

@@ -570,8 +570,8 @@ size_t Reconstruction::FilterAllPoints3D(const double max_reproj_error,
   size_t num_filtered = 0;
   num_filtered += FilterPoints3DWithLargeReprojectionError(
       max_reproj_error, point3D_ids, is_refractive);
-  num_filtered +=
-      FilterPoints3DWithSmallTriangulationAngle(min_tri_angle, point3D_ids);
+  num_filtered += FilterPoints3DWithSmallTriangulationAngle(
+      min_tri_angle, point3D_ids, is_refractive);
   return num_filtered;
 }
 
@@ -1358,7 +1358,8 @@ void Reconstruction::CreateImageDirs(const std::string& path) const {
 
 size_t Reconstruction::FilterPoints3DWithSmallTriangulationAngle(
     const double min_tri_angle,
-    const std::unordered_set<point3D_t>& point3D_ids) {
+    const std::unordered_set<point3D_t>& point3D_ids,
+    bool is_refractive) {
   // Number of filtered points.
   size_t num_filtered = 0;
 
@@ -1385,7 +1386,21 @@ size_t Reconstruction::FilterPoints3DWithSmallTriangulationAngle(
       Eigen::Vector3d proj_center1;
       if (proj_centers.count(image_id1) == 0) {
         const class Image& image1 = Image(image_id1);
-        proj_center1 = image1.ProjectionCenter();
+        if (!is_refractive) {
+          // Non-refractive case
+          proj_center1 = image1.ProjectionCenter();
+        } else {
+          const class Camera& camera1 = Camera(image1.CameraId());
+          const Eigen::Vector2d point2D1 =
+              image1.Point2D(point3D.Track().Element(i1).point2D_idx).xy;
+          class Camera virtual_camera1;
+          Rigid3d virtual_from_real;
+          camera1.ComputeVirtual(point2D1, virtual_camera1, virtual_from_real);
+          const Rigid3d virtual_from_world =
+              virtual_from_real * image1.CamFromWorld();
+          proj_center1 = virtual_from_world.rotation.inverse() *
+                         -virtual_from_world.translation;
+        }
         proj_centers.emplace(image_id1, proj_center1);
       } else {
         proj_center1 = proj_centers.at(image_id1);
