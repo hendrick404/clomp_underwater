@@ -348,7 +348,6 @@ bool IncrementalMapper::RegisterInitialImagePair(const Options& options,
           camera2.CamFromImg(image2.Point2D(corr.point2D_idx2).xy);
       const Eigen::Vector3d& xyz = TriangulatePoint(
           cam_from_world1, cam_from_world2, point2D1, point2D2);
-      std::cout << "xyz: " << xyz.transpose() << std::endl;
       const double tri_angle =
           CalculateTriangulationAngle(proj_center1, proj_center2, xyz);
       if (tri_angle >= min_tri_angle_rad &&
@@ -370,7 +369,6 @@ bool IncrementalMapper::RegisterInitialImagePair(const Options& options,
       camera2.ComputeVirtual(image2.Point2D(corr.point2D_idx2).xy,
                              virtual_camera2,
                              virtual_from_real2);
-
       const Rigid3d virtual_from_world1 =
           virtual_from_real1 * image1.CamFromWorld();
       const Rigid3d virtual_from_world2 =
@@ -393,7 +391,7 @@ bool IncrementalMapper::RegisterInitialImagePair(const Options& options,
           virtual_camera2.CamFromImg(image2.Point2D(corr.point2D_idx2).xy);
       const Eigen::Vector3d& xyz =
           TriangulatePoint(proj_matrix1, proj_matrix2, point2D1, point2D2);
-      std::cout << "xyz: " << xyz.transpose() << std::endl;
+
       const double tri_angle = CalculateTriangulationAngle(
           virtual_proj_center1, virtual_proj_center2, xyz);
       if (tri_angle >= min_tri_angle_rad &&

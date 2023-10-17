@@ -614,11 +614,12 @@ class ReprojErrorRefracCostFunction {
     CameraRefracModel::RefractionAxis(refrac_params, &refrac_axis);
     const Eigen::Quaternion<T> virtual_from_real_rotation =
         Eigen::Quaternion<T>::FromTwoVectors(refrac_axis,
-                                             Eigen::Matrix<T, 3, 1>::UnitZ());
+                                             Eigen::Matrix<T, 3, 1>::UnitZ())
+            .normalized();
 
     Eigen::Matrix<T, 3, 1> virtual_cam_center;
     IntersectLinesWithTolerance<T>(Eigen::Matrix<T, 3, 1>::Zero(),
-                                   refrac_axis,
+                                   -refrac_axis,
                                    ray_ori,
                                    -ray_dir,
                                    virtual_cam_center);
@@ -698,11 +699,12 @@ class ReprojErrorRefracConstantPoseCostFunction {
     CameraRefracModel::RefractionAxis(refrac_params, &refrac_axis);
     const Eigen::Quaternion<T> virtual_from_real_rotation =
         Eigen::Quaternion<T>::FromTwoVectors(refrac_axis,
-                                             Eigen::Matrix<T, 3, 1>::UnitZ());
+                                             Eigen::Matrix<T, 3, 1>::UnitZ())
+            .normalized();
 
     Eigen::Matrix<T, 3, 1> virtual_cam_center;
     IntersectLinesWithTolerance<T>(Eigen::Matrix<T, 3, 1>::Zero(),
-                                   refrac_axis,
+                                   -refrac_axis,
                                    ray_ori,
                                    -ray_dir,
                                    virtual_cam_center);

@@ -367,6 +367,7 @@ void FlatPort::CamFromImg(const T* cam_params,
                           const T y,
                           Eigen::Matrix<T, 3, 1>* ori,
                           Eigen::Matrix<T, 3, 1>* dir) {
+  (*ori) = Eigen::Matrix<T, 3, 1>::Zero();
   CameraModel::CamFromImg(cam_params, x, y, &(*dir)(0), &(*dir)(1), &(*dir)(2));
   (*dir).normalize();
   const Eigen::Matrix<T, 3, 1> int_normal(
@@ -474,6 +475,7 @@ void DomePort::CamFromImg(const T* cam_params,
                           const T y,
                           Eigen::Matrix<T, 3, 1>* ori,
                           Eigen::Matrix<T, 3, 1>* dir) {
+  (*ori) = Eigen::Matrix<T, 3, 1>::Zero();
   CameraModel::CamFromImg(cam_params, x, y, &(*dir)(0), &(*dir)(1), &(*dir)(2));
   (*dir).normalize();
   const Eigen::Matrix<T, 3, 1> sphere_center(

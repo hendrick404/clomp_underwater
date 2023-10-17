@@ -37,7 +37,8 @@ namespace colmap {
 double CalculateSquaredReprojectionError(const Eigen::Vector2d& point2D,
                                          const Eigen::Vector3d& point3D,
                                          const Rigid3d& cam_from_world,
-                                         const Camera& camera) {
+                                         const Camera& camera,
+                                         bool refractive) {
   const Eigen::Vector3d point3D_in_cam = cam_from_world * point3D;
 
   // Check that point is infront of camera.
@@ -53,7 +54,8 @@ double CalculateSquaredReprojectionError(
     const Eigen::Vector2d& point2D,
     const Eigen::Vector3d& point3D,
     const Eigen::Matrix3x4d& cam_from_world,
-    const Camera& camera) {
+    const Camera& camera,
+    bool refractive) {
   const double proj_z = cam_from_world.row(2).dot(point3D.homogeneous());
 
   // Check that point is infront of camera.
