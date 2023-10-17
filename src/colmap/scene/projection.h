@@ -49,13 +49,13 @@ double CalculateSquaredReprojectionError(const Eigen::Vector2d& point2D,
                                          const Eigen::Vector3d& point3D,
                                          const Rigid3d& cam_from_world,
                                          const Camera& camera,
-                                         bool refractive = false);
+                                         bool is_refractive = false);
 double CalculateSquaredReprojectionError(
     const Eigen::Vector2d& point2D,
     const Eigen::Vector3d& point3D,
     const Eigen::Matrix3x4d& cam_from_world,
     const Camera& camera,
-    bool refractive = false);
+    bool is_refractive = false);
 
 // Calculate the angular error.
 //

@@ -534,7 +534,8 @@ void Reconstruction::TranscribeImageIdsToDatabase(const Database& database) {
 size_t Reconstruction::FilterPoints3D(
     const double max_reproj_error,
     const double min_tri_angle,
-    const std::unordered_set<point3D_t>& point3D_ids) {
+    const std::unordered_set<point3D_t>& point3D_ids,
+    bool is_refractive) {
   size_t num_filtered = 0;
   num_filtered +=
       FilterPoints3DWithLargeReprojectionError(max_reproj_error, point3D_ids);
@@ -560,14 +561,15 @@ size_t Reconstruction::FilterPoints3DInImages(
 }
 
 size_t Reconstruction::FilterAllPoints3D(const double max_reproj_error,
-                                         const double min_tri_angle) {
+                                         const double min_tri_angle,
+                                         bool is_refractive) {
   // Important: First filter observations and points with large reprojection
   // error, so that observations with large reprojection error do not make
   // a point stable through a large triangulation angle.
   const std::unordered_set<point3D_t>& point3D_ids = Point3DIds();
   size_t num_filtered = 0;
-  num_filtered +=
-      FilterPoints3DWithLargeReprojectionError(max_reproj_error, point3D_ids);
+  num_filtered += FilterPoints3DWithLargeReprojectionError(
+      max_reproj_error, point3D_ids, is_refractive);
   num_filtered +=
       FilterPoints3DWithSmallTriangulationAngle(min_tri_angle, point3D_ids);
   return num_filtered;
@@ -1418,7 +1420,8 @@ size_t Reconstruction::FilterPoints3DWithSmallTriangulationAngle(
 
 size_t Reconstruction::FilterPoints3DWithLargeReprojectionError(
     const double max_reproj_error,
-    const std::unordered_set<point3D_t>& point3D_ids) {
+    const std::unordered_set<point3D_t>& point3D_ids,
+    bool is_refractive) {
   const double max_squared_reproj_error = max_reproj_error * max_reproj_error;
 
   // Number of filtered points.
@@ -1445,8 +1448,12 @@ size_t Reconstruction::FilterPoints3DWithLargeReprojectionError(
       const class Image& image = Image(track_el.image_id);
       const class Camera& camera = Camera(image.CameraId());
       const Point2D& point2D = image.Point2D(track_el.point2D_idx);
-      const double squared_reproj_error = CalculateSquaredReprojectionError(
-          point2D.xy, point3D.XYZ(), image.CamFromWorld(), camera);
+      const double squared_reproj_error =
+          CalculateSquaredReprojectionError(point2D.xy,
+                                            point3D.XYZ(),
+                                            image.CamFromWorld(),
+                                            camera,
+                                            is_refractive);
       if (squared_reproj_error > max_squared_reproj_error) {
         track_els_to_delete.push_back(track_el);
       } else {
