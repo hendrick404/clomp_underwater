@@ -29,6 +29,7 @@
 
 #include "colmap/sfm/incremental_mapper.h"
 
+#include "colmap/estimators/generalized_pose.h"
 #include "colmap/estimators/pose.h"
 #include "colmap/estimators/two_view_geometry.h"
 #include "colmap/geometry/triangulation.h"
@@ -551,31 +552,76 @@ bool IncrementalMapper::RegisterNextImage(const Options& options,
   size_t num_inliers;
   std::vector<char> inlier_mask;
 
-  if (!EstimateAbsolutePose(abs_pose_options,
+  if (!options.enable_refraction) {
+    // Non-refractive case.
+    if (!EstimateAbsolutePose(abs_pose_options,
+                              tri_points2D,
+                              tri_points3D,
+                              &image.CamFromWorld(),
+                              &camera,
+                              &num_inliers,
+                              &inlier_mask)) {
+      return false;
+    }
+
+    if (num_inliers < static_cast<size_t>(options.abs_pose_min_num_inliers)) {
+      return false;
+    }
+
+    //////////////////////////////////////////////////////////////////////////////
+    // Pose refinement
+    //////////////////////////////////////////////////////////////////////////////
+
+    if (!RefineAbsolutePose(abs_pose_refinement_options,
+                            inlier_mask,
                             tri_points2D,
                             tri_points3D,
                             &image.CamFromWorld(),
-                            &camera,
-                            &num_inliers,
-                            &inlier_mask)) {
-    return false;
-  }
+                            &camera)) {
+      return false;
+    }
+  } else {
+    // Refractive case.
+    std::vector<Camera> virtual_cameras;
+    std::vector<Rigid3d> virtual_from_reals;
+    camera.ComputeVirtuals(tri_points2D, virtual_cameras, virtual_from_reals);
 
-  if (num_inliers < static_cast<size_t>(options.abs_pose_min_num_inliers)) {
-    return false;
-  }
+    std::vector<size_t> camera_idxs(tri_points2D.size());
+    std::iota(camera_idxs.begin(), camera_idxs.end(), 0);
 
-  //////////////////////////////////////////////////////////////////////////////
-  // Pose refinement
-  //////////////////////////////////////////////////////////////////////////////
+    if (!EstimateGeneralizedAbsolutePose(abs_pose_options.ransac_options,
+                                         tri_points2D,
+                                         tri_points3D,
+                                         camera_idxs,
+                                         virtual_from_reals,
+                                         virtual_cameras,
+                                         &image.CamFromWorld(),
+                                         &num_inliers,
+                                         &inlier_mask)) {
+      return false;
+    }
 
-  if (!RefineAbsolutePose(abs_pose_refinement_options,
-                          inlier_mask,
-                          tri_points2D,
-                          tri_points3D,
-                          &image.CamFromWorld(),
-                          &camera)) {
-    return false;
+    if (num_inliers < static_cast<size_t>(options.abs_pose_min_num_inliers)) {
+      return false;
+    }
+
+    //////////////////////////////////////////////////////////////////////////////
+    // Pose refinement
+    //////////////////////////////////////////////////////////////////////////////
+
+    abs_pose_refinement_options.refine_focal_length = false;
+    abs_pose_refinement_options.refine_extra_params = false;
+
+    if (!RefineGeneralizedAbsolutePose(abs_pose_refinement_options,
+                                       inlier_mask,
+                                       tri_points2D,
+                                       tri_points3D,
+                                       camera_idxs,
+                                       virtual_from_reals,
+                                       &image.CamFromWorld(),
+                                       &virtual_cameras)) {
+      return false;
+    }
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -734,11 +780,13 @@ IncrementalMapper::AdjustLocalBundle(
   report.num_filtered_observations =
       reconstruction_->FilterPoints3DInImages(options.filter_max_reproj_error,
                                               options.filter_min_tri_angle,
-                                              filter_image_ids);
+                                              filter_image_ids,
+                                              options.enable_refraction);
   report.num_filtered_observations +=
       reconstruction_->FilterPoints3D(options.filter_max_reproj_error,
                                       options.filter_min_tri_angle,
-                                      point3D_ids);
+                                      point3D_ids,
+                                      options.enable_refraction);
 
   return report;
 }

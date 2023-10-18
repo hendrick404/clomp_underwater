@@ -220,7 +220,8 @@ class Reconstruction {
                         bool is_refractive = false);
   size_t FilterPoints3DInImages(double max_reproj_error,
                                 double min_tri_angle,
-                                const std::unordered_set<image_t>& image_ids);
+                                const std::unordered_set<image_t>& image_ids,
+                                bool is_refractive = false);
   size_t FilterAllPoints3D(double max_reproj_error,
                            double min_tri_angle,
                            bool is_refractive = false);

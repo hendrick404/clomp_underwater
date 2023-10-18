@@ -191,12 +191,31 @@ size_t IncrementalTriangulator::CompleteImage(const Options& options,
     pose_data.resize(corrs_data.size());
     for (size_t i = 0; i < corrs_data.size(); ++i) {
       const CorrData& corr_data = corrs_data[i];
-      point_data[i].point = corr_data.point2D->xy;
-      point_data[i].point_normalized =
-          corr_data.camera->CamFromImg(point_data[i].point);
-      pose_data[i].proj_matrix = corr_data.image->CamFromWorld().ToMatrix();
-      pose_data[i].proj_center = corr_data.image->ProjectionCenter();
-      pose_data[i].camera = corr_data.camera;
+      if (!options.enable_refraction) {
+        // Non-refractive case.
+        point_data[i].point = corr_data.point2D->xy;
+        point_data[i].point_normalized =
+            corr_data.camera->CamFromImg(point_data[i].point);
+        pose_data[i].proj_matrix = corr_data.image->CamFromWorld().ToMatrix();
+        pose_data[i].proj_center = corr_data.image->ProjectionCenter();
+        pose_data[i].camera = corr_data.camera;
+      } else {
+        // Refractive case.
+        Rigid3d virtual_from_real;
+        Camera virtual_camera;
+        corr_data.camera->ComputeVirtual(
+            corr_data.point2D->xy, virtual_camera, virtual_from_real);
+        point_data[i].point = corr_data.point2D->xy;
+        point_data[i].point_normalized =
+            virtual_camera.CamFromImg(point_data[i].point);
+
+        const Rigid3d virtual_from_world =
+            virtual_from_real * corr_data.image->CamFromWorld();
+        pose_data[i].proj_matrix = virtual_from_world.ToMatrix();
+        pose_data[i].proj_center = virtual_from_world.rotation.inverse() *
+                                   -virtual_from_world.translation;
+        pose_data[i].camera = &virtual_camera;
+      }
     }
 
     // Enforce exhaustive sampling for small track lengths.
@@ -682,7 +701,8 @@ size_t IncrementalTriangulator::Merge(const Options& options,
           if (CalculateSquaredReprojectionError(test_point2D.xy,
                                                 merged_xyz,
                                                 test_image.CamFromWorld(),
-                                                test_camera) >
+                                                test_camera,
+                                                options.enable_refraction) >
               max_squared_reproj_error) {
             merge_success = false;
             break;
@@ -763,8 +783,11 @@ size_t IncrementalTriangulator::Complete(const Options& options,
           continue;
         }
 
-        if (CalculateSquaredReprojectionError(
-                point2D.xy, point3D.XYZ(), image.CamFromWorld(), camera) >
+        if (CalculateSquaredReprojectionError(point2D.xy,
+                                              point3D.XYZ(),
+                                              image.CamFromWorld(),
+                                              camera,
+                                              options.enable_refraction) >
             max_squared_reproj_error) {
           continue;
         }
