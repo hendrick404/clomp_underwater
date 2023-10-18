@@ -750,6 +750,9 @@ IncrementalMapper::AdjustLocalBundle(
       }
     }
 
+    std::cout << "Number of variable 3D points: " << variable_point3D_ids.size()
+              << std::endl;
+
     // Adjust the local bundle.
     BundleAdjuster bundle_adjuster(ba_options, ba_config);
     bundle_adjuster.Solve(reconstruction_.get());
@@ -836,7 +839,7 @@ bool IncrementalMapper::AdjustGlobalBundle(
 
   // Normalize scene for numerical stability and
   // to avoid large scale changes in viewer.
-  if (!options.use_pose_prior && !options.enable_refraction) {
+  if (!options.use_pose_prior) {
     reconstruction_->Normalize();
   }
   if (ba_options.refine_prior_from_cam) {

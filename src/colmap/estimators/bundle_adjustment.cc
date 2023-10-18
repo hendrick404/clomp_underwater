@@ -597,21 +597,45 @@ void BundleAdjuster::AddPointToProblem(const point3D_t point3D_id,
 
     ceres::CostFunction* cost_function = nullptr;
 
-    switch (camera.ModelId()) {
+    if (!options_.enable_refraction) {
+      // Non-refractive case.
+      switch (camera.ModelId()) {
 #define CAMERA_MODEL_CASE(CameraModel)                                        \
   case CameraModel::kModelId:                                                 \
     cost_function = ReprojErrorConstantPoseCostFunction<CameraModel>::Create( \
         image.CamFromWorld(), point2D.xy);                                    \
     break;
 
-      CAMERA_MODEL_SWITCH_CASES
+        CAMERA_MODEL_SWITCH_CASES
 
 #undef CAMERA_MODEL_CASE
+      }
+      problem_->AddResidualBlock(cost_function,
+                                 loss_function,
+                                 point3D.XYZ().data(),
+                                 camera.ParamsData());
+    } else {
+      // Refractive case.
+      double* refrac_params = camera.RefracParamsData();
+
+#define CAMERA_COMBINATION_MODEL_CASE(CameraRefracModel, CameraModel) \
+  if (camera.ModelId() == CameraModel::kModelId &&                    \
+      camera.RefracModelId() == CameraRefracModel::kRefracModelId) {  \
+    cost_function = ReprojErrorRefracConstantPoseCostFunction<        \
+        CameraRefracModel,                                            \
+        CameraModel>::Create(image.CamFromWorld(), point2D.xy);       \
+  } else
+
+      CAMERA_COMBINATION_MODEL_IF_ELSE_CASES
+
+#undef CAMERA_COMBINATION_MODEL_CASE
+
+      problem_->AddResidualBlock(cost_function,
+                                 loss_function,
+                                 point3D.XYZ().data(),
+                                 camera.ParamsData(),
+                                 refrac_params);
     }
-    problem_->AddResidualBlock(cost_function,
-                               loss_function,
-                               point3D.XYZ().data(),
-                               camera.ParamsData());
   }
 }
 
