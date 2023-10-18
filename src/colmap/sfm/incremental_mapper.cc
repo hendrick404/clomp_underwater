@@ -836,7 +836,7 @@ bool IncrementalMapper::AdjustGlobalBundle(
 
   // Normalize scene for numerical stability and
   // to avoid large scale changes in viewer.
-  if (!options.use_pose_prior) {
+  if (!options.use_pose_prior && !options.enable_refraction) {
     reconstruction_->Normalize();
   }
   if (ba_options.refine_prior_from_cam) {
@@ -1061,6 +1061,8 @@ std::vector<image_t> IncrementalMapper::FindLocalBundle(
   std::unordered_set<point3D_t> point3D_ids;
   point3D_ids.reserve(image.NumPoints3D());
 
+  std::unordered_map<point3D_t, Rigid3d> virtual_from_reals_map;
+
   for (const Point2D& point2D : image.Points2D()) {
     if (point2D.HasPoint3D()) {
       point3D_ids.insert(point2D.point3D_id);
@@ -1069,6 +1071,14 @@ std::vector<image_t> IncrementalMapper::FindLocalBundle(
         if (track_el.image_id != image_id) {
           shared_observations[track_el.image_id] += 1;
         }
+      }
+      if (options.enable_refraction) {
+        const Camera& camera = reconstruction_->Camera(image.CameraId());
+        Camera virtual_camera;
+        Rigid3d virtual_from_real;
+        camera.ComputeVirtual(point2D.xy, virtual_camera, virtual_from_real);
+        virtual_from_reals_map.emplace(
+            std::make_pair(point2D.point3D_id, virtual_from_real));
       }
     }
   }
@@ -1160,19 +1170,66 @@ std::vector<image_t> IncrementalMapper::FindLocalBundle(
       if (tri_angle < 0.0) {
         // Collect the commonly observed 3D points.
         shared_points3D.clear();
+
+        std::vector<point3D_t> shared_points3D_ids;
+
+        std::unordered_map<point3D_t, Rigid3d>
+            overlapping_virtual_from_reals_map;
+
         for (const Point2D& point2D : overlapping_image.Points2D()) {
           if (point2D.HasPoint3D() && point3D_ids.count(point2D.point3D_id)) {
             shared_points3D.push_back(
                 reconstruction_->Point3D(point2D.point3D_id).XYZ());
+
+            if (options.enable_refraction) {
+              shared_points3D_ids.push_back(point2D.point3D_id);
+              const Camera& camera =
+                  reconstruction_->Camera(overlapping_image.CameraId());
+              Camera virtual_camera;
+              Rigid3d virtual_from_real;
+              camera.ComputeVirtual(
+                  point2D.xy, virtual_camera, virtual_from_real);
+              overlapping_virtual_from_reals_map.emplace(
+                  std::make_pair(point2D.point3D_id, virtual_from_real));
+            }
           }
         }
 
         // Calculate the triangulation angle at a certain percentile.
         const double kTriangulationAnglePercentile = 75;
-        tri_angle = Percentile(
-            CalculateTriangulationAngles(
-                proj_center, overlapping_proj_center, shared_points3D),
-            kTriangulationAnglePercentile);
+        if (!options.enable_refraction) {
+          // Non-refractive case.
+          tri_angle = Percentile(
+              CalculateTriangulationAngles(
+                  proj_center, overlapping_proj_center, shared_points3D),
+              kTriangulationAnglePercentile);
+        } else {
+          // Refractive case.
+          std::vector<double> tri_angles_cache;
+          for (size_t idx = 0; idx < shared_points3D.size(); ++idx) {
+            const point3D_t point3D_id = shared_points3D_ids[idx];
+
+            const Rigid3d virtual_from_world =
+                virtual_from_reals_map.at(point3D_id) * image.CamFromWorld();
+            const Rigid3d overlapping_virtual_from_world =
+                overlapping_virtual_from_reals_map.at(point3D_id) *
+                overlapping_image.CamFromWorld();
+
+            const Eigen::Vector3d proj_center_virtual =
+                virtual_from_world.rotation.inverse() *
+                -virtual_from_world.translation;
+            const Eigen::Vector3d overlapping_proj_center_virtual =
+                overlapping_virtual_from_world.rotation.inverse() *
+                -overlapping_virtual_from_world.translation;
+
+            tri_angles_cache.push_back(
+                CalculateTriangulationAngle(proj_center_virtual,
+                                            overlapping_proj_center_virtual,
+                                            shared_points3D[idx]));
+          }
+          tri_angle =
+              Percentile(tri_angles_cache, kTriangulationAnglePercentile);
+        }
       }
 
       // Check that the image has sufficient triangulation angle.

@@ -145,6 +145,18 @@ size_t EstimatePose(Camera& camera,
           << std::endl;
       return 0;
     }
+    AbsolutePoseRefinementOptions abs_pose_refinement_options;
+    abs_pose_refinement_options.refine_focal_length = false;
+    abs_pose_refinement_options.refine_extra_params = false;
+
+    // if (!RefineAbsolutePose(abs_pose_refinement_options,
+    //                         inlier_mask,
+    //                         points_data.points2D,
+    //                         points_data.points3D,
+    //                         &cam_from_world,
+    //                         &camera)) {
+    //   return false;
+    // }
   } else {
     // Refractive pose estimation
     std::vector<size_t> camera_idxs(points_data.points2D_refrac.size());
@@ -169,6 +181,22 @@ size_t EstimatePose(Camera& camera,
           << std::endl;
       return 0;
     }
+
+    AbsolutePoseRefinementOptions abs_pose_refinement_options;
+    abs_pose_refinement_options.refine_focal_length = false;
+    abs_pose_refinement_options.refine_extra_params = false;
+
+    std::vector<Camera> virtual_cameras_copy = points_data.virtual_cameras;
+    if (!RefineGeneralizedAbsolutePose(abs_pose_refinement_options,
+                                       inlier_mask,
+                                       points_data.points2D_refrac,
+                                       points_data.points3D,
+                                       camera_idxs,
+                                       points_data.virtual_from_reals,
+                                       &cam_from_world,
+                                       &virtual_cameras_copy)) {
+      std::cerr << "ERROR: Pose refinement failed" << std::endl;
+    }
   }
   return num_inliers;
 }
@@ -188,7 +216,8 @@ void Evaluate(Camera& camera,
               size_t num_exps,
               double inlier_ratio,
               const std::string& output_path) {
-  std::vector<double> noise_levels = {0.0, 0.2, 0.5, 0.8, 1.2, 1.5, 1.8, 2.0};
+  //std::vector<double> noise_levels = {0.0, 0.2, 0.5, 0.8, 1.2, 1.5, 1.8, 2.0};
+  std::vector<double> noise_levels = {0.0};
 
   std::ofstream file(output_path, std::ios::out);
   file << "# noise_level pos_error_mean pos_error_std rot_error_mean "
