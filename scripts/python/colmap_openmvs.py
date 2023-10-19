@@ -239,6 +239,12 @@ def parse_args():
         default=False,
     )
     group.add_argument(
+        "--enable_refraction",
+        help="whether to use refractive camera model in reconstruction",
+        action="store_true",
+        default=False
+    )
+    group.add_argument(
         "--hybrid_mapper",
         help="whether to use hybrid mapper for sparse reconstruction. (Hybrid mapper is a combination of global mapper and incremental mapper)",
         action="store_true",
@@ -473,6 +479,7 @@ class COLMAPOpenMVSPipeline:
         self.use_color_norm_in_features: bool = args.use_color_norm_in_features
 
         self.fix_intrin: bool = args.fix_intrin
+        self.enable_refraction: bool = args.enable_refraction
         self.hybrid_mapper: bool = args.hybrid_mapper
         self.leaf_max_num_images: int = args.leaf_max_num_images
         self.image_overlap: int = args.image_overlap
