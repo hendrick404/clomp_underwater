@@ -227,6 +227,7 @@ IncrementalMapper::Options IncrementalMapperOptions::Mapper() const {
   options.local_ba_num_images = ba_local_num_images;
   options.fix_existing_images = fix_existing_images;
   options.use_pose_prior = use_pose_prior;
+  options.enable_refraction = enable_refraction;
   return options;
 }
 
@@ -236,6 +237,7 @@ IncrementalTriangulator::Options IncrementalMapperOptions::Triangulation()
   options.min_focal_length_ratio = min_focal_length_ratio;
   options.max_focal_length_ratio = max_focal_length_ratio;
   options.max_extra_param = max_extra_param;
+  options.enable_refraction = enable_refraction;
   return options;
 }
 
@@ -264,6 +266,7 @@ BundleAdjustmentOptions IncrementalMapperOptions::LocalBundleAdjustment()
   options.use_pose_prior = use_pose_prior;
   options.use_global_pose_prior_std = ba_use_global_pose_prior_std;
   options.pose_prior_std = CSVToVector<double>(ba_pose_prior_std);
+  options.enable_refraction = enable_refraction;
   return options;
 }
 
@@ -292,6 +295,7 @@ BundleAdjustmentOptions IncrementalMapperOptions::GlobalBundleAdjustment()
   options.use_global_pose_prior_std = ba_use_global_pose_prior_std;
   options.pose_prior_std = CSVToVector<double>(ba_pose_prior_std);
   options.refine_prior_from_cam = ba_refine_prior_from_cam;
+  options.enable_refraction = enable_refraction;
   return options;
 }
 

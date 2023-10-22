@@ -216,11 +216,15 @@ class Reconstruction {
   // @return                    The number of filtered observations.
   size_t FilterPoints3D(double max_reproj_error,
                         double min_tri_angle,
-                        const std::unordered_set<point3D_t>& point3D_ids);
+                        const std::unordered_set<point3D_t>& point3D_ids,
+                        bool is_refractive = false);
   size_t FilterPoints3DInImages(double max_reproj_error,
                                 double min_tri_angle,
-                                const std::unordered_set<image_t>& image_ids);
-  size_t FilterAllPoints3D(double max_reproj_error, double min_tri_angle);
+                                const std::unordered_set<image_t>& image_ids,
+                                bool is_refractive = false);
+  size_t FilterAllPoints3D(double max_reproj_error,
+                           double min_tri_angle,
+                           bool is_refractive = false);
 
   // Filter observations that have negative depth.
   //
@@ -365,10 +369,13 @@ class Reconstruction {
 
  private:
   size_t FilterPoints3DWithSmallTriangulationAngle(
-      double min_tri_angle, const std::unordered_set<point3D_t>& point3D_ids);
+      double min_tri_angle,
+      const std::unordered_set<point3D_t>& point3D_ids,
+      bool is_refractive = false);
   size_t FilterPoints3DWithLargeReprojectionError(
       double max_reproj_error,
-      const std::unordered_set<point3D_t>& point3D_ids);
+      const std::unordered_set<point3D_t>& point3D_ids,
+      bool is_refractive = false);
 
   std::tuple<Eigen::Vector3d, Eigen::Vector3d, Eigen::Vector3d>
   ComputeBoundsAndCentroid(double p0, double p1, bool use_images) const;

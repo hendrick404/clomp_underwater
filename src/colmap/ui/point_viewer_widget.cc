@@ -29,6 +29,7 @@
 
 #include "colmap/ui/point_viewer_widget.h"
 
+#include "colmap/controllers/incremental_mapper.h"
 #include "colmap/ui/model_viewer_widget.h"
 #include "colmap/util/misc.h"
 
@@ -177,12 +178,20 @@ void PointViewerWidget::Show(const point3D_t point3D_id) {
 
   // Paint features for each track element.
 
+  const bool enable_refraction = options_->mapper->enable_refraction;
+
   for (const auto& track_el : track_idx_image_name_pairs) {
     const Image& image = model_viewer_widget_->images[track_el.first.image_id];
     const Camera& camera = model_viewer_widget_->cameras[image.CameraId()];
     const Point2D& point2D = image.Point2D(track_el.first.point2D_idx);
-    const Eigen::Vector2d proj_point2D =
-        camera.ImgFromCam((image.CamFromWorld() * point3D.XYZ()).hnormalized());
+    Eigen::Vector2d proj_point2D;
+    if (!enable_refraction) {
+      proj_point2D = camera.ImgFromCam(
+          (image.CamFromWorld() * point3D.XYZ()).hnormalized());
+    } else {
+      proj_point2D =
+          camera.ImgFromCamRefrac(image.CamFromWorld() * point3D.XYZ());
+    }
     const double reproj_error = (point2D.xy - proj_point2D).norm();
 
     Bitmap bitmap;

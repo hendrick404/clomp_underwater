@@ -30,6 +30,7 @@
 #pragma once
 
 #include "colmap/geometry/rigid3.h"
+#include "colmap/sensor/ray3d.h"
 
 #include <Eigen/Core>
 #include <ceres/ceres.h>
@@ -564,6 +565,176 @@ class SmoothMotionCostFunction {
 
  private:
   const Eigen::Matrix6d sqrt_information_;
+};
+
+// Refractive bundle adjustment cost function for variable
+// camera pose, calibration, and point parameters.
+template <typename CameraRefracModel, typename CameraModel>
+class ReprojErrorRefracCostFunction {
+ public:
+  explicit ReprojErrorRefracCostFunction(const Eigen::Vector2d& point2D)
+      : observed_x_(point2D(0)), observed_y_(point2D(1)) {}
+
+  static ceres::CostFunction* Create(const Eigen::Vector2d& point2D) {
+    return (new ceres::AutoDiffCostFunction<
+            ReprojErrorRefracCostFunction<CameraRefracModel, CameraModel>,
+            2,
+            4,
+            3,
+            3,
+            CameraModel::kNumParams,
+            CameraRefracModel::kNumParams>(
+        new ReprojErrorRefracCostFunction(point2D)));
+  }
+
+  template <typename T>
+  bool operator()(const T* const cam_from_world_rotation,
+                  const T* const cam_from_world_translation,
+                  const T* const point3D,
+                  const T* const camera_params,
+                  const T* const refrac_params,
+                  T* residuals) const {
+    const Eigen::Matrix<T, 3, 1> point3D_in_cam =
+        EigenQuaternionMap<T>(cam_from_world_rotation) *
+            EigenVector3Map<T>(point3D) +
+        EigenVector3Map<T>(cam_from_world_translation);
+
+    // Compute the refracted ray.
+    Eigen::Matrix<T, 3, 1> ray_ori;
+    Eigen::Matrix<T, 3, 1> ray_dir;
+    CameraRefracModel::template CamFromImg<CameraModel, T>(camera_params,
+                                                           refrac_params,
+                                                           T(observed_x_),
+                                                           T(observed_y_),
+                                                           &ray_ori,
+                                                           &ray_dir);
+
+    // Compute the virtual from real transformation.
+    Eigen::Matrix<T, 3, 1> refrac_axis;
+    CameraRefracModel::RefractionAxis(refrac_params, &refrac_axis);
+    const Eigen::Quaternion<T> virtual_from_real_rotation =
+        Eigen::Quaternion<T>::FromTwoVectors(refrac_axis,
+                                             Eigen::Matrix<T, 3, 1>::UnitZ())
+            .normalized();
+
+    Eigen::Matrix<T, 3, 1> virtual_cam_center;
+    IntersectLinesWithTolerance<T>(Eigen::Matrix<T, 3, 1>::Zero(),
+                                   -refrac_axis,
+                                   ray_ori,
+                                   -ray_dir,
+                                   virtual_cam_center);
+
+    const Eigen::Matrix<T, 3, 1> virtual_from_real_translation =
+        virtual_from_real_rotation * -virtual_cam_center;
+
+    const Eigen::Matrix<T, 2, 1> cam_point =
+        (virtual_from_real_rotation * ray_dir).hnormalized();
+
+    const T f = camera_params[0];
+    const T c1 = T(observed_x_) - f * cam_point[0];
+    const T c2 = T(observed_y_) - f * cam_point[1];
+
+    // Finally, do simple pinhole projection.
+    const Eigen::Matrix<T, 3, 1> point3D_in_virtual =
+        virtual_from_real_rotation * point3D_in_cam +
+        virtual_from_real_translation;
+
+    residuals[0] = f * point3D_in_virtual[0] / point3D_in_virtual[2] + c1;
+    residuals[1] = f * point3D_in_virtual[1] / point3D_in_virtual[2] + c2;
+    residuals[0] -= T(observed_x_);
+    residuals[1] -= T(observed_y_);
+    return true;
+  }
+
+ private:
+  const double observed_x_;
+  const double observed_y_;
+};
+
+// Refractive Bundle adjustment cost function for variable
+// camera calibration and point parameters, and fixed camera pose.
+template <typename CameraRefracModel, typename CameraModel>
+class ReprojErrorRefracConstantPoseCostFunction {
+ public:
+  ReprojErrorRefracConstantPoseCostFunction(const Rigid3d& cam_from_world,
+                                            const Eigen::Vector2d& point2D)
+      : cam_from_world_(cam_from_world),
+        observed_x_(point2D(0)),
+        observed_y_(point2D(1)) {}
+
+  static ceres::CostFunction* Create(const Rigid3d& cam_from_world,
+                                     const Eigen::Vector2d& point2D) {
+    return (new ceres::AutoDiffCostFunction<
+            ReprojErrorRefracConstantPoseCostFunction<CameraRefracModel,
+                                                      CameraModel>,
+            2,
+            3,
+            CameraModel::kNumParams,
+            CameraRefracModel::kNumParams>(
+        new ReprojErrorRefracConstantPoseCostFunction(cam_from_world,
+                                                      point2D)));
+  }
+
+  template <typename T>
+  bool operator()(const T* const point3D,
+                  const T* const camera_params,
+                  const T* const refrac_params,
+                  T* residuals) const {
+    const Eigen::Matrix<T, 3, 1> point3D_in_cam =
+        cam_from_world_.rotation.cast<T>() * EigenVector3Map<T>(point3D) +
+        cam_from_world_.translation.cast<T>();
+
+    // Compute the refracted ray.
+    Eigen::Matrix<T, 3, 1> ray_ori;
+    Eigen::Matrix<T, 3, 1> ray_dir;
+    CameraRefracModel::template CamFromImg<CameraModel, T>(camera_params,
+                                                           refrac_params,
+                                                           T(observed_x_),
+                                                           T(observed_y_),
+                                                           &ray_ori,
+                                                           &ray_dir);
+
+    // Compute the virtual from real transformation.
+    Eigen::Matrix<T, 3, 1> refrac_axis;
+    CameraRefracModel::RefractionAxis(refrac_params, &refrac_axis);
+    const Eigen::Quaternion<T> virtual_from_real_rotation =
+        Eigen::Quaternion<T>::FromTwoVectors(refrac_axis,
+                                             Eigen::Matrix<T, 3, 1>::UnitZ())
+            .normalized();
+
+    Eigen::Matrix<T, 3, 1> virtual_cam_center;
+    IntersectLinesWithTolerance<T>(Eigen::Matrix<T, 3, 1>::Zero(),
+                                   -refrac_axis,
+                                   ray_ori,
+                                   -ray_dir,
+                                   virtual_cam_center);
+
+    const Eigen::Matrix<T, 3, 1> virtual_from_real_translation =
+        virtual_from_real_rotation * -virtual_cam_center;
+
+    const Eigen::Matrix<T, 2, 1> cam_point =
+        (virtual_from_real_rotation * ray_dir).hnormalized();
+
+    const T f = camera_params[0];
+    const T c1 = T(observed_x_) - f * cam_point[0];
+    const T c2 = T(observed_y_) - f * cam_point[1];
+
+    // Finally, do simple pinhole projection.
+    const Eigen::Matrix<T, 3, 1> point3D_in_virtual =
+        virtual_from_real_rotation * point3D_in_cam +
+        virtual_from_real_translation;
+
+    residuals[0] = f * point3D_in_virtual[0] / point3D_in_virtual[2] + c1;
+    residuals[1] = f * point3D_in_virtual[1] / point3D_in_virtual[2] + c2;
+    residuals[0] -= T(observed_x_);
+    residuals[1] -= T(observed_y_);
+    return true;
+  }
+
+ private:
+  const Rigid3d& cam_from_world_;
+  const double observed_x_;
+  const double observed_y_;
 };
 
 inline void SetQuaternionManifold(ceres::Problem* problem, double* quat_xyzw) {

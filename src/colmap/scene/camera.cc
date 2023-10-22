@@ -29,6 +29,7 @@
 
 #include "colmap/scene/camera.h"
 
+#include "colmap/geometry/rigid3.h"
 #include "colmap/sensor/models.h"
 #include "colmap/sensor/models_refrac.h"
 #include "colmap/util/logging.h"
@@ -333,6 +334,81 @@ void Camera::Rescale(const size_t width, const size_t height) {
   } else {
     LOG(FATAL)
         << "Camera model must either have 1 or 2 focal length parameters.";
+  }
+}
+
+Eigen::Vector3d Camera::RefractionAxis() const {
+  return CameraRefracModelRefractionAxis(refrac_model_id_, refrac_params_);
+}
+
+Eigen::Quaterniond Camera::VirtualFromRealRotation() const {
+  return Eigen::Quaterniond::FromTwoVectors(RefractionAxis(),
+                                            Eigen::Vector3d::UnitZ())
+      .normalized();
+}
+
+Eigen::Vector3d Camera::VirtualCameraCenter(const Ray3D& ray_refrac) const {
+  Eigen::Vector3d virtual_cam_center;
+  IntersectLinesWithTolerance<double>(Eigen::Vector3d::Zero(),
+                                      RefractionAxis(),
+                                      ray_refrac.ori,
+                                      -ray_refrac.dir,
+                                      virtual_cam_center);
+  return virtual_cam_center;
+}
+
+Camera Camera::VirtualCamera(const Eigen::Vector2d& image_point,
+                             const Eigen::Vector2d& cam_point) const {
+  colmap::Camera virtual_camera;
+  virtual_camera.SetModelIdFromName("SIMPLE_PINHOLE");
+  virtual_camera.SetWidth(width_);
+  virtual_camera.SetHeight(height_);
+
+  double f;
+
+  const std::vector<size_t>& idxs = FocalLengthIdxs();
+  if (idxs.size() == 1) {
+    f = params_[idxs[0]];
+  } else if (idxs.size() == 2) {
+    f = (params_[idxs[0]] + params_[idxs[1]]) / 2.0;
+  } else {
+    LOG(FATAL)
+        << "Camera model must either have 1 or 2 focal length parameters.";
+  }
+
+  // Determine the principal points.
+  const double cx = image_point.x() - f * cam_point.x();
+  const double cy = image_point.y() - f * cam_point.y();
+
+  virtual_camera.SetParams({f, cx, cy});
+  return virtual_camera;
+}
+
+void Camera::ComputeVirtual(const Eigen::Vector2d& point2D,
+                            Camera& virtual_camera,
+                            Rigid3d& virtual_from_real) const {
+  Eigen::Quaterniond virtual_from_real_rotation = VirtualFromRealRotation();
+
+  const Ray3D ray_refrac = CamFromImgRefrac(point2D);
+  const Eigen::Vector3d virtual_cam_center = VirtualCameraCenter(ray_refrac);
+  virtual_from_real = Rigid3d(virtual_from_real_rotation,
+                              virtual_from_real_rotation * -virtual_cam_center);
+  virtual_camera = VirtualCamera(
+      point2D, (virtual_from_real_rotation * ray_refrac.dir).hnormalized());
+}
+
+void Camera::ComputeVirtuals(const std::vector<Eigen::Vector2d>& points2D,
+                             std::vector<Camera>& virtual_cameras,
+                             std::vector<Rigid3d>& virtual_from_reals) const {
+  virtual_cameras.reserve(points2D.size());
+  virtual_from_reals.reserve(points2D.size());
+
+  for (const Eigen::Vector2d& point : points2D) {
+    Rigid3d virtual_from_real;
+    Camera virtual_camera;
+    ComputeVirtual(point, virtual_camera, virtual_from_real);
+    virtual_from_reals.push_back(virtual_from_real);
+    virtual_cameras.push_back(virtual_camera);
   }
 }
 

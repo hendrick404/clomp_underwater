@@ -37,7 +37,8 @@ namespace colmap {
 double CalculateSquaredReprojectionError(const Eigen::Vector2d& point2D,
                                          const Eigen::Vector3d& point3D,
                                          const Rigid3d& cam_from_world,
-                                         const Camera& camera) {
+                                         const Camera& camera,
+                                         bool is_refractive) {
   const Eigen::Vector3d point3D_in_cam = cam_from_world * point3D;
 
   // Check that point is infront of camera.
@@ -45,15 +46,22 @@ double CalculateSquaredReprojectionError(const Eigen::Vector2d& point2D,
     return std::numeric_limits<double>::max();
   }
 
-  return (camera.ImgFromCam(point3D_in_cam.hnormalized()) - point2D)
-      .squaredNorm();
+  Eigen::Vector2d proj_point2D;
+  if (is_refractive) {
+    proj_point2D = camera.ImgFromCamRefrac(point3D_in_cam);
+  } else {
+    proj_point2D = camera.ImgFromCam(point3D_in_cam.hnormalized());
+  }
+
+  return (proj_point2D - point2D).squaredNorm();
 }
 
 double CalculateSquaredReprojectionError(
     const Eigen::Vector2d& point2D,
     const Eigen::Vector3d& point3D,
     const Eigen::Matrix3x4d& cam_from_world,
-    const Camera& camera) {
+    const Camera& camera,
+    bool is_refractive) {
   const double proj_z = cam_from_world.row(2).dot(point3D.homogeneous());
 
   // Check that point is infront of camera.
@@ -65,9 +73,14 @@ double CalculateSquaredReprojectionError(
   const double proj_y = cam_from_world.row(1).dot(point3D.homogeneous());
   const double inv_proj_z = 1.0 / proj_z;
 
-  const Eigen::Vector2d proj_point2D = camera.ImgFromCam(
-      Eigen::Vector2d(inv_proj_z * proj_x, inv_proj_z * proj_y));
-
+  Eigen::Vector2d proj_point2D;
+  if (is_refractive) {
+    proj_point2D =
+        camera.ImgFromCamRefrac(Eigen::Vector3d(proj_x, proj_y, proj_z));
+  } else {
+    proj_point2D = camera.ImgFromCam(
+        Eigen::Vector2d(inv_proj_z * proj_x, inv_proj_z * proj_y));
+  }
   return (proj_point2D - point2D).squaredNorm();
 }
 

@@ -204,10 +204,22 @@ def parse_args():
     )
     group.add_argument(
         "--camera_params",
-        help="camera intrinsic parameters specified as a list of commma-separated parameters",
+        help="camera intrinsic parameters specified as a list of comma-separated parameters",
         type=str,
         default="",
     ),
+    group.add_argument(
+        "--enable_refraction",
+        help="whether to use refractive camera model in reconstruction",
+        action="store_true",
+        default=False,
+    )
+    group.add_argument(
+        "--camera_refrac_params",
+        help="camera refractive parameters specified as a list of comma-separated parameters",
+        type=str,
+        default="",
+    )
     group.add_argument(
         "--max_image_size",
         help="maximum image size for feature extraction, otherwise image will be down-scaled.",
@@ -467,6 +479,8 @@ class COLMAPOpenMVSPipeline:
         self.camera_model: str = args.camera_model
         self.known_intrin: bool = False if args.camera_params == "" else True
         self.camera_params: str = args.camera_params
+        self.enable_refraction: bool = args.enable_refraction
+        self.camera_refrac_params: str = args.camera_refrac_params
         self.max_image_size: int = args.max_image_size
         self.domain_size_pooling: bool = args.domain_size_pooling
         self.camera_mask_path: str = args.camera_mask_path
@@ -663,6 +677,12 @@ class COLMAPOpenMVSPipeline:
 
             if self.known_intrin:
                 extractor_cmds += ["--ImageReader.camera_params", self.camera_params]
+
+            if self.enable_refraction:
+                extractor_cmds += [
+                    "--ImageReader.camera_refrac_params",
+                    self.camera_refrac_params,
+                ]
 
             if self.have_pose_prior:
                 extractor_cmds += [

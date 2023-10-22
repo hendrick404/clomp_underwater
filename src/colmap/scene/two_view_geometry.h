@@ -56,6 +56,8 @@ struct TwoViewGeometry {
     // Multi-model configuration, i.e. the inlier matches result from multiple
     // individual, non-degenerate configurations.
     MULTIPLE = 8,
+    // Refractive.
+    REFRACTIVE = 9,
   };
 
   // One of `ConfigurationType`.

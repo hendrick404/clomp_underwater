@@ -10,15 +10,15 @@ int main(int argc, char* argv[]) {
     const std::string input_path =
         "/data2/mshe/omv_src/colmap-project/dataset/2023-08_AL-Daycruise/"
         "2023-08-10_Alkor_0001_GMR_PFM-109_AUV-LUISE_Mission-305/"
-        "reconstruction_first_300/result/exp1/sparse/0/";
+        "reconstruct_last_100/result/exp1/sparse/0/";
     const std::string database_path =
         "/data2/mshe/omv_src/colmap-project/dataset/2023-08_AL-Daycruise/"
         "2023-08-10_Alkor_0001_GMR_PFM-109_AUV-LUISE_Mission-305/"
-        "reconstruction_first_300/result/database.db";
+        "reconstruct_last_100/result/database.db";
     const std::string output_path =
         "/data2/mshe/omv_src/colmap-project/dataset/2023-08_AL-Daycruise/"
         "2023-08-10_Alkor_0001_GMR_PFM-109_AUV-LUISE_Mission-305/"
-        "reconstruction_first_300/result/exp1/for_david/sparse/";
+        "reconstruct_last_100/result/exp1/for_david/sparse/";
 
     Rigid3d prior_from_cam(
         Eigen::Quaterniond(0.711987, -0.00218027, -0.00757204, 0.702149),
@@ -39,10 +39,10 @@ int main(int argc, char* argv[]) {
 
     // Extra images I want to manually add:
     std::vector<image_t> extra_image_ids;
-    extra_image_ids.resize(17);
-    std::iota(extra_image_ids.begin(), extra_image_ids.end(), 1);
+    extra_image_ids.resize(42);
+    std::iota(extra_image_ids.begin(), extra_image_ids.end(), 40);
 
-    std::cout << "Extrac image ids: ";
+    std::cout << "Extra image ids: ";
     for (image_t id : extra_image_ids) {
       std::cout << id << " ";
     }

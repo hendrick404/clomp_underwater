@@ -82,7 +82,10 @@ static const int kInvalidRefractiveCameraModelId = -1;
                               T x,                                             \
                               T y,                                             \
                               T d,                                             \
-                              Eigen::Matrix<T, 3, 1>* uvw);
+                              Eigen::Matrix<T, 3, 1>* uvw);                    \
+  template <typename T>                                                        \
+  static void RefractionAxis(const T* refrac_params,                           \
+                             Eigen::Matrix<T, 3, 1>* refraction_axis);
 #endif
 
 #ifndef CAMERA_REFRAC_MODEL_CASES
@@ -282,6 +285,9 @@ inline Eigen::Vector3d CameraRefracModelCamFromImgPoint(
     const Eigen::Vector2d& xy,
     const double d);
 
+inline Eigen::Vector3d CameraRefracModelRefractionAxis(
+    int refrac_model_id, const std::vector<double>& refrac_params);
+
 ////////////////////////////////////////////////////////////////////////////////
 // BaseCameraRefracModel
 
@@ -361,6 +367,7 @@ void FlatPort::CamFromImg(const T* cam_params,
                           const T y,
                           Eigen::Matrix<T, 3, 1>* ori,
                           Eigen::Matrix<T, 3, 1>* dir) {
+  (*ori) = Eigen::Matrix<T, 3, 1>::Zero();
   CameraModel::CamFromImg(cam_params, x, y, &(*dir)(0), &(*dir)(1), &(*dir)(2));
   (*dir).normalize();
   const Eigen::Matrix<T, 3, 1> int_normal(
@@ -437,6 +444,15 @@ void FlatPort::CamFromImgPoint(const T* cam_params,
   *uvw = ori + lambd * dir;
 }
 
+template <typename T>
+void FlatPort::RefractionAxis(const T* refrac_params,
+                              Eigen::Matrix<T, 3, 1>* refraction_axis) {
+  (*refraction_axis)[0] = refrac_params[0];
+  (*refraction_axis)[1] = refrac_params[1];
+  (*refraction_axis)[2] = refrac_params[2];
+  (*refraction_axis).normalize();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // DomePort
 
@@ -459,6 +475,7 @@ void DomePort::CamFromImg(const T* cam_params,
                           const T y,
                           Eigen::Matrix<T, 3, 1>* ori,
                           Eigen::Matrix<T, 3, 1>* dir) {
+  (*ori) = Eigen::Matrix<T, 3, 1>::Zero();
   CameraModel::CamFromImg(cam_params, x, y, &(*dir)(0), &(*dir)(1), &(*dir)(2));
   (*dir).normalize();
   const Eigen::Matrix<T, 3, 1> sphere_center(
@@ -540,6 +557,15 @@ void DomePort::CamFromImgPoint(const T* cam_params,
   *uvw = ori + lambd * dir;
 }
 
+template <typename T>
+void DomePort::RefractionAxis(const T* refrac_params,
+                              Eigen::Matrix<T, 3, 1>* refraction_axis) {
+  (*refraction_axis)[0] = refrac_params[0];
+  (*refraction_axis)[1] = refrac_params[1];
+  (*refraction_axis)[2] = refrac_params[2];
+  (*refraction_axis).normalize();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Eigen::Vector2d CameraRefracModelImgFromCam(
@@ -609,6 +635,22 @@ Eigen::Vector3d CameraRefracModelCamFromImgPoint(
 
 #undef CAMERA_COMBINATION_MODEL_CASE
   return uvw;
+}
+
+Eigen::Vector3d CameraRefracModelRefractionAxis(
+    const int refrac_model_id, const std::vector<double>& refrac_params) {
+  Eigen::Vector3d refrac_axis;
+  switch (refrac_model_id) {
+#define CAMERA_REFRAC_MODEL_CASE(CameraRefracModel)                        \
+  case CameraRefracModel::kRefracModelId:                                  \
+    CameraRefracModel::RefractionAxis(refrac_params.data(), &refrac_axis); \
+    break;
+
+    CAMERA_REFRAC_MODEL_SWITCH_CASES
+
+#undef CAMERA_REFRAC_MODEL_CASE
+  }
+  return refrac_axis;
 }
 
 }  // namespace colmap

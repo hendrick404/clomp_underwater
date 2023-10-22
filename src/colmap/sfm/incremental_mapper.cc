@@ -29,6 +29,7 @@
 
 #include "colmap/sfm/incremental_mapper.h"
 
+#include "colmap/estimators/generalized_pose.h"
 #include "colmap/estimators/pose.h"
 #include "colmap/estimators/two_view_geometry.h"
 #include "colmap/geometry/triangulation.h"
@@ -340,23 +341,69 @@ bool IncrementalMapper::RegisterInitialImagePair(const Options& options,
   track.Element(0).image_id = image_id1;
   track.Element(1).image_id = image_id2;
   for (const auto& corr : corrs) {
-    const Eigen::Vector2d point2D1 =
-        camera1.CamFromImg(image1.Point2D(corr.point2D_idx1).xy);
-    const Eigen::Vector2d point2D2 =
-        camera2.CamFromImg(image2.Point2D(corr.point2D_idx2).xy);
-    const Eigen::Vector3d& xyz =
-        TriangulatePoint(cam_from_world1, cam_from_world2, point2D1, point2D2);
-    const double tri_angle =
-        CalculateTriangulationAngle(proj_center1, proj_center2, xyz);
-    if (tri_angle >= min_tri_angle_rad &&
-        HasPointPositiveDepth(cam_from_world1, xyz) &&
-        HasPointPositiveDepth(cam_from_world2, xyz)) {
-      track.Element(0).point2D_idx = corr.point2D_idx1;
-      track.Element(1).point2D_idx = corr.point2D_idx2;
-      reconstruction_->AddPoint3D(xyz, track);
+    if (!options.enable_refraction) {
+      // Non-refractive case.
+      const Eigen::Vector2d point2D1 =
+          camera1.CamFromImg(image1.Point2D(corr.point2D_idx1).xy);
+      const Eigen::Vector2d point2D2 =
+          camera2.CamFromImg(image2.Point2D(corr.point2D_idx2).xy);
+      const Eigen::Vector3d& xyz = TriangulatePoint(
+          cam_from_world1, cam_from_world2, point2D1, point2D2);
+      const double tri_angle =
+          CalculateTriangulationAngle(proj_center1, proj_center2, xyz);
+      if (tri_angle >= min_tri_angle_rad &&
+          HasPointPositiveDepth(cam_from_world1, xyz) &&
+          HasPointPositiveDepth(cam_from_world2, xyz)) {
+        track.Element(0).point2D_idx = corr.point2D_idx1;
+        track.Element(1).point2D_idx = corr.point2D_idx2;
+        reconstruction_->AddPoint3D(xyz, track);
+      }
+    } else {
+      // Refractive case.
+      Camera virtual_camera1;
+      Camera virtual_camera2;
+      Rigid3d virtual_from_real1;
+      Rigid3d virtual_from_real2;
+      camera1.ComputeVirtual(image1.Point2D(corr.point2D_idx1).xy,
+                             virtual_camera1,
+                             virtual_from_real1);
+      camera2.ComputeVirtual(image2.Point2D(corr.point2D_idx2).xy,
+                             virtual_camera2,
+                             virtual_from_real2);
+      const Rigid3d virtual_from_world1 =
+          virtual_from_real1 * image1.CamFromWorld();
+      const Rigid3d virtual_from_world2 =
+          virtual_from_real2 * image2.CamFromWorld();
+
+      const Eigen::Matrix3x4d proj_matrix1 = virtual_from_world1.ToMatrix();
+      const Eigen::Matrix3x4d proj_matrix2 = virtual_from_world2.ToMatrix();
+      const Eigen::Vector3d virtual_proj_center1 =
+          virtual_from_world1.rotation.inverse() *
+          -virtual_from_world1.translation;
+      const Eigen::Vector3d virtual_proj_center2 =
+          virtual_from_world2.rotation.inverse() *
+          -virtual_from_world2.translation;
+
+      // Now do the same triangulation as above.
+
+      const Eigen::Vector2d point2D1 =
+          virtual_camera1.CamFromImg(image1.Point2D(corr.point2D_idx1).xy);
+      const Eigen::Vector2d point2D2 =
+          virtual_camera2.CamFromImg(image2.Point2D(corr.point2D_idx2).xy);
+      const Eigen::Vector3d& xyz =
+          TriangulatePoint(proj_matrix1, proj_matrix2, point2D1, point2D2);
+
+      const double tri_angle = CalculateTriangulationAngle(
+          virtual_proj_center1, virtual_proj_center2, xyz);
+      if (tri_angle >= min_tri_angle_rad &&
+          HasPointPositiveDepth(proj_matrix1, xyz) &&
+          HasPointPositiveDepth(proj_matrix2, xyz)) {
+        track.Element(0).point2D_idx = corr.point2D_idx1;
+        track.Element(1).point2D_idx = corr.point2D_idx2;
+        reconstruction_->AddPoint3D(xyz, track);
+      }
     }
   }
-
   return true;
 }
 
@@ -505,31 +552,76 @@ bool IncrementalMapper::RegisterNextImage(const Options& options,
   size_t num_inliers;
   std::vector<char> inlier_mask;
 
-  if (!EstimateAbsolutePose(abs_pose_options,
+  if (!options.enable_refraction) {
+    // Non-refractive case.
+    if (!EstimateAbsolutePose(abs_pose_options,
+                              tri_points2D,
+                              tri_points3D,
+                              &image.CamFromWorld(),
+                              &camera,
+                              &num_inliers,
+                              &inlier_mask)) {
+      return false;
+    }
+
+    if (num_inliers < static_cast<size_t>(options.abs_pose_min_num_inliers)) {
+      return false;
+    }
+
+    //////////////////////////////////////////////////////////////////////////////
+    // Pose refinement
+    //////////////////////////////////////////////////////////////////////////////
+
+    if (!RefineAbsolutePose(abs_pose_refinement_options,
+                            inlier_mask,
                             tri_points2D,
                             tri_points3D,
                             &image.CamFromWorld(),
-                            &camera,
-                            &num_inliers,
-                            &inlier_mask)) {
-    return false;
-  }
+                            &camera)) {
+      return false;
+    }
+  } else {
+    // Refractive case.
+    std::vector<Camera> virtual_cameras;
+    std::vector<Rigid3d> virtual_from_reals;
+    camera.ComputeVirtuals(tri_points2D, virtual_cameras, virtual_from_reals);
 
-  if (num_inliers < static_cast<size_t>(options.abs_pose_min_num_inliers)) {
-    return false;
-  }
+    std::vector<size_t> camera_idxs(tri_points2D.size());
+    std::iota(camera_idxs.begin(), camera_idxs.end(), 0);
 
-  //////////////////////////////////////////////////////////////////////////////
-  // Pose refinement
-  //////////////////////////////////////////////////////////////////////////////
+    if (!EstimateGeneralizedAbsolutePose(abs_pose_options.ransac_options,
+                                         tri_points2D,
+                                         tri_points3D,
+                                         camera_idxs,
+                                         virtual_from_reals,
+                                         virtual_cameras,
+                                         &image.CamFromWorld(),
+                                         &num_inliers,
+                                         &inlier_mask)) {
+      return false;
+    }
 
-  if (!RefineAbsolutePose(abs_pose_refinement_options,
-                          inlier_mask,
-                          tri_points2D,
-                          tri_points3D,
-                          &image.CamFromWorld(),
-                          &camera)) {
-    return false;
+    if (num_inliers < static_cast<size_t>(options.abs_pose_min_num_inliers)) {
+      return false;
+    }
+
+    //////////////////////////////////////////////////////////////////////////////
+    // Pose refinement
+    //////////////////////////////////////////////////////////////////////////////
+
+    abs_pose_refinement_options.refine_focal_length = false;
+    abs_pose_refinement_options.refine_extra_params = false;
+
+    if (!RefineGeneralizedAbsolutePose(abs_pose_refinement_options,
+                                       inlier_mask,
+                                       tri_points2D,
+                                       tri_points3D,
+                                       camera_idxs,
+                                       virtual_from_reals,
+                                       &image.CamFromWorld(),
+                                       &virtual_cameras)) {
+      return false;
+    }
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -628,7 +720,8 @@ IncrementalMapper::AdjustLocalBundle(
       }
     }
 
-    // Fix 7 DOF to avoid scale/rotation/translation drift in bundle adjustment.
+    // Fix 7 DOF to avoid scale/rotation/translation drift in bundle
+    // adjustment.
     if (local_bundle.size() == 1) {
       ba_config.SetConstantCamPose(local_bundle[0]);
       ba_config.SetConstantCamPositions(image_id, {0});
@@ -657,6 +750,9 @@ IncrementalMapper::AdjustLocalBundle(
       }
     }
 
+    std::cout << "Number of variable 3D points: " << variable_point3D_ids.size()
+              << std::endl;
+
     // Adjust the local bundle.
     BundleAdjuster bundle_adjuster(ba_options, ba_config);
     bundle_adjuster.Solve(reconstruction_.get());
@@ -678,8 +774,8 @@ IncrementalMapper::AdjustLocalBundle(
   }
 
   // Filter both the modified images and all changed 3D points to make sure
-  // there are no outlier points in the model. This results in duplicate work as
-  // many of the provided 3D points may also be contained in the adjusted
+  // there are no outlier points in the model. This results in duplicate work
+  // as many of the provided 3D points may also be contained in the adjusted
   // images, but the filtering is not a bottleneck at this point.
   std::unordered_set<image_t> filter_image_ids;
   filter_image_ids.insert(image_id);
@@ -687,11 +783,13 @@ IncrementalMapper::AdjustLocalBundle(
   report.num_filtered_observations =
       reconstruction_->FilterPoints3DInImages(options.filter_max_reproj_error,
                                               options.filter_min_tri_angle,
-                                              filter_image_ids);
+                                              filter_image_ids,
+                                              options.enable_refraction);
   report.num_filtered_observations +=
       reconstruction_->FilterPoints3D(options.filter_max_reproj_error,
                                       options.filter_min_tri_angle,
-                                      point3D_ids);
+                                      point3D_ids,
+                                      options.enable_refraction);
 
   return report;
 }
@@ -783,7 +881,8 @@ size_t IncrementalMapper::FilterPoints(const Options& options) {
   CHECK_NOTNULL(reconstruction_);
   CHECK(options.Check());
   return reconstruction_->FilterAllPoints3D(options.filter_max_reproj_error,
-                                            options.filter_min_tri_angle);
+                                            options.filter_min_tri_angle,
+                                            options.enable_refraction);
 }
 
 const Reconstruction& IncrementalMapper::GetReconstruction() const {
@@ -965,6 +1064,8 @@ std::vector<image_t> IncrementalMapper::FindLocalBundle(
   std::unordered_set<point3D_t> point3D_ids;
   point3D_ids.reserve(image.NumPoints3D());
 
+  std::unordered_map<point3D_t, Rigid3d> virtual_from_reals_map;
+
   for (const Point2D& point2D : image.Points2D()) {
     if (point2D.HasPoint3D()) {
       point3D_ids.insert(point2D.point3D_id);
@@ -973,6 +1074,14 @@ std::vector<image_t> IncrementalMapper::FindLocalBundle(
         if (track_el.image_id != image_id) {
           shared_observations[track_el.image_id] += 1;
         }
+      }
+      if (options.enable_refraction) {
+        const Camera& camera = reconstruction_->Camera(image.CameraId());
+        Camera virtual_camera;
+        Rigid3d virtual_from_real;
+        camera.ComputeVirtual(point2D.xy, virtual_camera, virtual_from_real);
+        virtual_from_reals_map.emplace(
+            std::make_pair(point2D.point3D_id, virtual_from_real));
       }
     }
   }
@@ -1000,8 +1109,8 @@ std::vector<image_t> IncrementalMapper::FindLocalBundle(
   std::vector<image_t> local_bundle_image_ids;
   local_bundle_image_ids.reserve(num_eff_images);
 
-  // If the number of overlapping images equals the number of desired images in
-  // the local bundle, then simply copy over the image identifiers.
+  // If the number of overlapping images equals the number of desired images
+  // in the local bundle, then simply copy over the image identifiers.
   if (overlapping_images.size() == num_eff_images) {
     for (const auto& overlapping_image : overlapping_images) {
       local_bundle_image_ids.push_back(overlapping_image.first);
@@ -1041,8 +1150,8 @@ std::vector<image_t> IncrementalMapper::FindLocalBundle(
     for (size_t overlapping_image_idx = 0;
          overlapping_image_idx < overlapping_images.size();
          ++overlapping_image_idx) {
-      // Check if the image has sufficient overlap. Since the images are ordered
-      // based on the overlap, we can just skip the remaining ones.
+      // Check if the image has sufficient overlap. Since the images are
+      // ordered based on the overlap, we can just skip the remaining ones.
       if (overlapping_images[overlapping_image_idx].second <
           selection_threshold.second) {
         break;
@@ -1064,19 +1173,66 @@ std::vector<image_t> IncrementalMapper::FindLocalBundle(
       if (tri_angle < 0.0) {
         // Collect the commonly observed 3D points.
         shared_points3D.clear();
+
+        std::vector<point3D_t> shared_points3D_ids;
+
+        std::unordered_map<point3D_t, Rigid3d>
+            overlapping_virtual_from_reals_map;
+
         for (const Point2D& point2D : overlapping_image.Points2D()) {
           if (point2D.HasPoint3D() && point3D_ids.count(point2D.point3D_id)) {
             shared_points3D.push_back(
                 reconstruction_->Point3D(point2D.point3D_id).XYZ());
+
+            if (options.enable_refraction) {
+              shared_points3D_ids.push_back(point2D.point3D_id);
+              const Camera& camera =
+                  reconstruction_->Camera(overlapping_image.CameraId());
+              Camera virtual_camera;
+              Rigid3d virtual_from_real;
+              camera.ComputeVirtual(
+                  point2D.xy, virtual_camera, virtual_from_real);
+              overlapping_virtual_from_reals_map.emplace(
+                  std::make_pair(point2D.point3D_id, virtual_from_real));
+            }
           }
         }
 
         // Calculate the triangulation angle at a certain percentile.
         const double kTriangulationAnglePercentile = 75;
-        tri_angle = Percentile(
-            CalculateTriangulationAngles(
-                proj_center, overlapping_proj_center, shared_points3D),
-            kTriangulationAnglePercentile);
+        if (!options.enable_refraction) {
+          // Non-refractive case.
+          tri_angle = Percentile(
+              CalculateTriangulationAngles(
+                  proj_center, overlapping_proj_center, shared_points3D),
+              kTriangulationAnglePercentile);
+        } else {
+          // Refractive case.
+          std::vector<double> tri_angles_cache;
+          for (size_t idx = 0; idx < shared_points3D.size(); ++idx) {
+            const point3D_t point3D_id = shared_points3D_ids[idx];
+
+            const Rigid3d virtual_from_world =
+                virtual_from_reals_map.at(point3D_id) * image.CamFromWorld();
+            const Rigid3d overlapping_virtual_from_world =
+                overlapping_virtual_from_reals_map.at(point3D_id) *
+                overlapping_image.CamFromWorld();
+
+            const Eigen::Vector3d proj_center_virtual =
+                virtual_from_world.rotation.inverse() *
+                -virtual_from_world.translation;
+            const Eigen::Vector3d overlapping_proj_center_virtual =
+                overlapping_virtual_from_world.rotation.inverse() *
+                -overlapping_virtual_from_world.translation;
+
+            tri_angles_cache.push_back(
+                CalculateTriangulationAngle(proj_center_virtual,
+                                            overlapping_proj_center_virtual,
+                                            shared_points3D[idx]));
+          }
+          tri_angle =
+              Percentile(tri_angles_cache, kTriangulationAnglePercentile);
+        }
       }
 
       // Check that the image has sufficient triangulation angle.
@@ -1185,13 +1341,49 @@ bool IncrementalMapper::EstimateInitialTwoViewGeometry(
   TwoViewGeometryOptions two_view_geometry_options;
   two_view_geometry_options.ransac_options.min_num_trials = 30;
   two_view_geometry_options.ransac_options.max_error = options.init_max_error;
-  TwoViewGeometry two_view_geometry = EstimateCalibratedTwoViewGeometry(
-      camera1, points1, camera2, points2, matches, two_view_geometry_options);
+  TwoViewGeometry two_view_geometry;
 
-  if (!EstimateTwoViewGeometryPose(
-          camera1, points1, camera2, points2, &two_view_geometry)) {
-    return false;
+  if (true) {
+    two_view_geometry = EstimateCalibratedTwoViewGeometry(
+        camera1, points1, camera2, points2, matches, two_view_geometry_options);
+
+    if (!EstimateTwoViewGeometryPose(
+            camera1, points1, camera2, points2, &two_view_geometry)) {
+      return false;
+    }
+  } else {
+    std::vector<Camera> virtual_cameras1;
+    std::vector<Camera> virtual_cameras2;
+    std::vector<Rigid3d> virtual_from_reals1;
+    std::vector<Rigid3d> virtual_from_reals2;
+
+    camera1.ComputeVirtuals(points1, virtual_cameras1, virtual_from_reals1);
+    camera2.ComputeVirtuals(points2, virtual_cameras2, virtual_from_reals2);
+
+    std::cout << "Estimate refractive two-view geometry" << std::endl;
+    two_view_geometry_options.compute_relative_pose = true;
+    two_view_geometry =
+        EstimateRefractiveTwoViewGeometry(points1,
+                                          virtual_cameras1,
+                                          virtual_from_reals1,
+                                          points2,
+                                          virtual_cameras2,
+                                          virtual_from_reals2,
+                                          matches,
+                                          two_view_geometry_options);
+    // Since the refractive two-view geometry can not estimate scale well, we
+    // normalize it to unit 1.
+    two_view_geometry.cam2_from_cam1.translation.normalize();
   }
+
+  std::cout << "Image pair: " << image_id1 << " -- " << image_id2 << std::endl;
+  std::cout << "Inlier matches: " << two_view_geometry.inlier_matches.size()
+            << std::endl;
+  std::cout << "Max forward motion: "
+            << std::abs(two_view_geometry.cam2_from_cam1.translation.z())
+            << std::endl;
+  std::cout << "Tri angle: " << RadToDeg(two_view_geometry.tri_angle)
+            << std::endl;
 
   if (static_cast<int>(two_view_geometry.inlier_matches.size()) >=
           options.init_min_num_inliers &&

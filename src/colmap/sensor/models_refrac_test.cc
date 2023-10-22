@@ -91,6 +91,12 @@ void TestModel(const std::vector<double>& cam_params,
   EXPECT_EQ(CameraRefracModelIdToName(CameraRefracModelNameToId(
                 CameraRefracModel::refrac_model_name)),
             CameraRefracModel::refrac_model_name);
+  Eigen::Vector3d refrac_axis(
+      refrac_params[0], refrac_params[1], refrac_params[2]);
+  refrac_axis.normalize();
+  EXPECT_EQ(CameraRefracModelRefractionAxis(CameraRefracModel::refrac_model_id,
+                                            refrac_params),
+            refrac_axis);
 
   // NOLINTNEXTLINE(clang-analyzer-security.FloatLoopCounter)
   for (double u = -0.5; u <= 0.5; u += 0.1) {

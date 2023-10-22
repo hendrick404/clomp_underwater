@@ -323,6 +323,8 @@ void OptionManager::AddMatchingOptions() {
                               &two_view_geometry->multiple_models);
   AddAndRegisterDefaultOption("TwoViewGeometry.compute_relative_pose",
                               &two_view_geometry->compute_relative_pose);
+  AddAndRegisterDefaultOption("TwoViewGeometry.enable_refraction",
+                              &two_view_geometry->enable_refraction);
   AddAndRegisterDefaultOption("TwoViewGeometry.max_error",
                               &two_view_geometry->ransac_options.max_error);
   AddAndRegisterDefaultOption("TwoViewGeometry.confidence",
@@ -561,6 +563,8 @@ void OptionManager::AddMapperOptions() {
       &mapper->ba_refine_prior_from_cam_after_num_images);
   AddAndRegisterDefaultOption("Mapper.ba_refine_intrin_after_num_images",
                               &mapper->ba_refine_intrin_after_num_images);
+  AddAndRegisterDefaultOption("Mapper.enable_refraction",
+                              &mapper->enable_refraction);
 
   // IncrementalMapper.
   AddAndRegisterDefaultOption("Mapper.init_min_num_inliers",

@@ -121,6 +121,9 @@ class IncrementalMapper {
     // Whether to use pose prior in reconstruction.
     bool use_pose_prior = false;
 
+    // Whether to use refractive camera model in reconstruction.
+    bool enable_refraction = false;
+
     // Method to find and select next best image to register.
     enum class ImageSelectionMethod {
       MAX_VISIBLE_POINTS_NUM,

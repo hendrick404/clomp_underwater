@@ -141,6 +141,8 @@ void FeatureMatchingTab::CreateGeneralOptions() {
                                 "min_num_inliers");
   options_widget_->AddOptionBool(&options_->two_view_geometry->multiple_models,
                                  "multiple_models");
+  options_widget_->AddOptionBool(
+      &options_->two_view_geometry->enable_refraction, "enable_refraction");
   options_widget_->AddSpacer();
 
   QScrollArea* options_scroll_area = new QScrollArea(this);

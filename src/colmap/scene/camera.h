@@ -36,6 +36,8 @@
 
 namespace colmap {
 
+class Rigid3d;
+
 // Camera class that holds the intrinsic parameters. Cameras may be shared
 // between multiple images, e.g., if the same "physical" camera took multiple
 // pictures with the exact same lens and intrinsics (focal length, etc.).
@@ -185,6 +187,27 @@ class Camera {
   // and the principal point.
   void Rescale(double scale);
   void Rescale(size_t width, size_t height);
+
+  // Return the refraction axis if the camera is refractive.
+  Eigen::Vector3d RefractionAxis() const;
+
+  // Return the rotation from the real camera to virtual camera.
+  Eigen::Quaterniond VirtualFromRealRotation() const;
+
+  Eigen::Vector3d VirtualCameraCenter(const Ray3D& ray_refrac) const;
+
+  // If the camera is refractive, this function returns a simple pinhole virtual
+  // camera which observes the `cam_point` from the `image_point` perspectively.
+  Camera VirtualCamera(const Eigen::Vector2d& image_point,
+                       const Eigen::Vector2d& cam_point) const;
+
+  void ComputeVirtual(const Eigen::Vector2d& point2D,
+                      Camera& virtual_camera,
+                      Rigid3d& virtual_from_real) const;
+
+  void ComputeVirtuals(const std::vector<Eigen::Vector2d>& points2D,
+                       std::vector<Camera>& virtual_cameras,
+                       std::vector<Rigid3d>& virtual_from_reals) const;
 
  private:
   // The unique identifier of the camera. If the identifier is not specified

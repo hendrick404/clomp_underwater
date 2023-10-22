@@ -320,8 +320,30 @@ class VerifierWorker : public Thread {
         const std::vector<Eigen::Vector2d> points2 =
             FeatureKeypointsToPointsVector(*keypoints2);
 
-        data.two_view_geometry = EstimateTwoViewGeometry(
-            camera1, points1, camera2, points2, data.matches, options_);
+        if (!options_.enable_refraction) {
+          data.two_view_geometry = EstimateTwoViewGeometry(
+              camera1, points1, camera2, points2, data.matches, options_);
+        } else {
+          std::vector<Camera> virtual_cameras1;
+          std::vector<Camera> virtual_cameras2;
+          std::vector<Rigid3d> virtual_from_reals1;
+          std::vector<Rigid3d> virtual_from_reals2;
+
+          camera1.ComputeVirtuals(
+              points1, virtual_cameras1, virtual_from_reals1);
+          camera1.ComputeVirtuals(
+              points2, virtual_cameras2, virtual_from_reals2);
+
+          data.two_view_geometry =
+              EstimateRefractiveTwoViewGeometry(points1,
+                                                virtual_cameras1,
+                                                virtual_from_reals1,
+                                                points2,
+                                                virtual_cameras2,
+                                                virtual_from_reals2,
+                                                data.matches,
+                                                options_);
+        }
 
         CHECK(output_queue_->Push(std::move(data)));
       }
