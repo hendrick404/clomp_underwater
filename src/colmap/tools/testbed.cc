@@ -1,11 +1,12 @@
 #include "colmap/geometry/rigid3.h"
+#include "colmap/math/random.h"
 #include "colmap/scene/reconstruction.h"
 #include "colmap/util/logging.h"
 
 using namespace colmap;
 
 int main(int argc, char* argv[]) {
-  if (true) {
+  if (false) {
     // For David, add additional images to the reconstruction.
     const std::string input_path =
         "/data2/mshe/omv_src/colmap-project/dataset/2023-08_AL-Daycruise/"
@@ -60,6 +61,52 @@ int main(int argc, char* argv[]) {
     }
 
     recon.WriteText(output_path);
+  }
+  if (true) {
+    Camera camera;
+    camera.SetWidth(2048);
+    camera.SetHeight(1536);
+    camera.SetModelIdFromName("PINHOLE");
+    std::vector<double> params = {
+        1300.900000, 1300.900000, 1024.000000, 768.000000};
+    camera.SetParams(params);
+
+    // Flatport setup.
+    camera.SetRefracModelIdFromName("FLATPORT");
+    Eigen::Vector3d int_normal;
+    int_normal[0] = RandomUniformReal(-0.3, 0.3);
+    int_normal[1] = RandomUniformReal(-0.3, 0.3);
+    int_normal[2] = RandomUniformReal(0.7, 1.3);
+
+    int_normal.normalize();
+
+    // int_normal = Eigen::Vector3d::UnitZ();
+
+    std::vector<double> flatport_params = {int_normal[0],
+                                           int_normal[1],
+                                           int_normal[2],
+                                           0.01,
+                                           0.014,
+                                           1.0,
+                                           1.52,
+                                           1.334};
+    camera.SetRefracParams(flatport_params);
+
+    for (int i = 0; i < 10; i++) {
+      const double x = RandomUniformReal(
+          0.5, 10.0 /*static_cast<double>(camera.Width()) - 0.5*/);
+      const double y = RandomUniformReal(
+          0.5, 10.0 /*static_cast<double>(camera.Height()) - 0.5*/);
+
+      Eigen::Vector2d point2D(x, y);
+      Ray3D ray_refrac = camera.CamFromImgRefrac(point2D);
+      const Eigen::Vector3d virtual_cam_center =
+          camera.VirtualCameraCenter(ray_refrac);
+
+      std::cout << "point: " << point2D.transpose()
+                << ", virtual cam center: " << virtual_cam_center.transpose()
+                << std::endl;
+    }
   }
   return true;
 }

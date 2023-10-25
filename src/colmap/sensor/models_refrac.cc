@@ -12,7 +12,9 @@ namespace colmap {
       CameraRefracModel::InitializeRefracModelName();                       \
   const size_t CameraRefracModel::num_params = InitializeNumParams();       \
   const std::string CameraRefracModel::params_info =                        \
-      CameraRefracModel::InitializeRefracModelParamsInfo();
+      CameraRefracModel::InitializeRefracModelParamsInfo();                 \
+  const std::vector<size_t> CameraRefracModel::optimizable_params_idxs =    \
+      CameraRefracModel::InitializeOptimizableParamsIdxs();
 
 CAMERA_REFRAC_MODEL_CASES
 
@@ -89,6 +91,23 @@ std::string CameraRefracModelParamsInfo(const int refrac_model_id) {
 #undef CAMERA_REFRAC_MODEL_CASE
   }
   return "Refractive camera model does not exist";
+}
+
+static const std::vector<size_t> EMPTY_IDXS;
+
+const std::vector<size_t>& CameraRefracModelOptimizableParamsIdxs(
+    int refrac_model_id) {
+  switch (refrac_model_id) {
+#define CAMERA_REFRAC_MODEL_CASE(CameraRefracModel)    \
+  case CameraRefracModel::kRefracModelId:              \
+    return CameraRefracModel::optimizable_params_idxs; \
+    break;
+
+    CAMERA_REFRAC_MODEL_SWITCH_CASES
+
+#undef CAMERA_REFRAC_MODEL_CASE
+  }
+  return EMPTY_IDXS;
 }
 
 size_t CameraRefracModelNumParams(const int refrac_model_id) {

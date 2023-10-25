@@ -337,6 +337,10 @@ void Camera::Rescale(const size_t width, const size_t height) {
   }
 }
 
+const std::vector<size_t>& Camera::OptimizableRefracParamsIdxs() const {
+  return CameraRefracModelOptimizableParamsIdxs(refrac_model_id_);
+}
+
 Eigen::Vector3d Camera::RefractionAxis() const {
   return CameraRefracModelRefractionAxis(refrac_model_id_, refrac_params_);
 }

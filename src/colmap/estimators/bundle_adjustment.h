@@ -84,6 +84,9 @@ struct BundleAdjustmentOptions {
   // Whether to use refractive camera model in reconstruction.
   bool enable_refraction = false;
 
+  // Which refractive parameters to optimize during the reconstruction.
+  bool refine_refrac_params = false;
+
   // Ceres-Solver options.
   ceres::Solver::Options solver_options;
 

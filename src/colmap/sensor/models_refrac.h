@@ -55,6 +55,7 @@ static const int kInvalidRefractiveCameraModelId = -1;
   static const std::string refrac_model_name;                                  \
   static const size_t num_params;                                              \
   static const std::string params_info;                                        \
+  static const std::vector<size_t> optimizable_params_idxs;                    \
                                                                                \
   static inline int InitializeRefracModelId() {                                \
     return refrac_model_id_value;                                              \
@@ -64,6 +65,7 @@ static const int kInvalidRefractiveCameraModelId = -1;
   }                                                                            \
   static inline size_t InitializeNumParams() { return num_params_value; }      \
   static inline std::string InitializeRefracModelParamsInfo();                 \
+  static inline std::vector<size_t> InitializeOptimizableParamsIdxs();         \
                                                                                \
   template <typename CameraModel, typename T>                                  \
   static void ImgFromCam(                                                      \
@@ -215,6 +217,12 @@ std::string CameraRefracModelIdToName(int refrac_model_id);
 // @param refrac_model_id        Unique identifier of refractive camera model
 std::string CameraRefracModelParamsInfo(int refrac_model_id);
 
+// Get the indices of the parameter groups in the parameter vector.
+//
+// @param refrac_model_id     Unique identifier of refractive camera model.
+const std::vector<size_t>& CameraRefracModelOptimizableParamsIdxs(
+    int refrac_model_id);
+
 // Get the total number of parameters of a refractive camera model
 size_t CameraRefracModelNumParams(int refrac_model_id);
 
@@ -352,6 +360,10 @@ std::string FlatPort::InitializeRefracModelParamsInfo() {
          "must be unit vector)";
 }
 
+std::vector<size_t> FlatPort::InitializeOptimizableParamsIdxs() {
+  return {0, 1, 2, 3};
+}
+
 template <typename CameraModel, typename T>
 void FlatPort::ImgFromCam(
     const T* cam_params, const T* refrac_params, T u, T v, T w, T* x, T* y) {
@@ -458,6 +470,10 @@ void FlatPort::RefractionAxis(const T* refrac_params,
 
 std::string DomePort::InitializeRefracModelParamsInfo() {
   return "Cx, Cy, Cz, int_radius, int_thick, na, ng, nw";
+}
+
+std::vector<size_t> DomePort::InitializeOptimizableParamsIdxs() {
+  return {0, 1, 2};
 }
 
 template <typename CameraModel, typename T>

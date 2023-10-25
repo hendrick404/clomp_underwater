@@ -116,6 +116,8 @@ MapperBundleAdjustmentOptionsWidget::MapperBundleAdjustmentOptionsWidget(
                 "refine_principal_point");
   AddOptionBool(&options->mapper->ba_refine_extra_params,
                 "refine_extra_params");
+  AddOptionBool(&options->mapper->ba_refine_refrac_params,
+                "refine_refrac_params");
 
   AddSpacer();
 

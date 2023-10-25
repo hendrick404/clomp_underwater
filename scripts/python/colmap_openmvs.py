@@ -714,6 +714,8 @@ class COLMAPOpenMVSPipeline:
                     "--SpatialMatching.max_distance",
                     "10",
                 ]
+            if self.enable_refraction:
+                matcher_cmds += ["--TwoViewGeometry.enable_refraction", "1"]
 
             print_heading1("Running feature matcher")
             exec_cmd(matcher_cmds)
@@ -802,6 +804,9 @@ class COLMAPOpenMVSPipeline:
                     "--Mapper.ba_refine_prior_from_cam_after_num_images",
                     f"{self.refine_prior_from_cam_after}",
                 ]
+
+        if self.enable_refraction:
+            mapper_cmds += ["--Mapper.enable_refraction", "1"]
 
         if self.write_snapshot and not self.hybrid_mapper:
             mapper_cmds += [

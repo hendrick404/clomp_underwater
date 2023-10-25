@@ -166,6 +166,9 @@ struct IncrementalMapperOptions {
   // Whether to use refractive camera model in reconstruction.
   bool enable_refraction = false;
 
+  // Which refractive parameters to optimize during the reconstruction.
+  bool ba_refine_refrac_params = false;
+
   IncrementalMapper::Options Mapper() const;
   IncrementalTriangulator::Options Triangulation() const;
   BundleAdjustmentOptions LocalBundleAdjustment() const;

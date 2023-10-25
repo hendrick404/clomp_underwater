@@ -679,11 +679,31 @@ void BundleAdjuster::ParameterizeCameras(Reconstruction* reconstruction) {
 
   if (options_.enable_refraction) {
     // Currently, we don't optimize refrac parameters.
-    const bool const_refrac_params = true;
     for (const camera_t camera_id : camera_ids_) {
       Camera& camera = reconstruction->Camera(camera_id);
-      if (const_refrac_params) {
+      if (!options_.refine_refrac_params) {
         problem_->SetParameterBlockConstant(camera.RefracParamsData());
+        continue;
+      } else {
+        std::vector<int> refrac_params_idxs(camera.NumRefracParams());
+        std::iota(refrac_params_idxs.begin(), refrac_params_idxs.end(), 0);
+
+        const std::vector<size_t>& optimizable_refrac_params_idxs =
+            camera.OptimizableRefracParamsIdxs();
+
+        std::vector<int> const_params_idxs;
+        std::set_difference(refrac_params_idxs.begin(),
+                            refrac_params_idxs.end(),
+                            optimizable_refrac_params_idxs.begin(),
+                            optimizable_refrac_params_idxs.end(),
+                            std::back_inserter(const_params_idxs));
+
+        if (const_params_idxs.size() > 0) {
+          SetSubsetManifold(static_cast<int>(camera.NumRefracParams()),
+                            const_params_idxs,
+                            problem_.get(),
+                            camera.RefracParamsData());
+        }
       }
     }
   }

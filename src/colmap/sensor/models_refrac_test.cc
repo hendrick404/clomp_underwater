@@ -91,6 +91,9 @@ void TestModel(const std::vector<double>& cam_params,
   EXPECT_EQ(CameraRefracModelIdToName(CameraRefracModelNameToId(
                 CameraRefracModel::refrac_model_name)),
             CameraRefracModel::refrac_model_name);
+  EXPECT_EQ(&CameraRefracModelOptimizableParamsIdxs(
+                CameraRefracModel::refrac_model_id),
+            &CameraRefracModel::optimizable_params_idxs);
   Eigen::Vector3d refrac_axis(
       refrac_params[0], refrac_params[1], refrac_params[2]);
   refrac_axis.normalize();

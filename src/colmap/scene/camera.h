@@ -188,6 +188,9 @@ class Camera {
   void Rescale(double scale);
   void Rescale(size_t width, size_t height);
 
+  // Get the indices of the parameter groups in the parameter vector.
+  const std::vector<size_t>& OptimizableRefracParamsIdxs() const;
+
   // Return the refraction axis if the camera is refractive.
   Eigen::Vector3d RefractionAxis() const;
 

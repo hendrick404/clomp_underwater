@@ -1376,15 +1376,6 @@ bool IncrementalMapper::EstimateInitialTwoViewGeometry(
     two_view_geometry.cam2_from_cam1.translation.normalize();
   }
 
-  std::cout << "Image pair: " << image_id1 << " -- " << image_id2 << std::endl;
-  std::cout << "Inlier matches: " << two_view_geometry.inlier_matches.size()
-            << std::endl;
-  std::cout << "Max forward motion: "
-            << std::abs(two_view_geometry.cam2_from_cam1.translation.z())
-            << std::endl;
-  std::cout << "Tri angle: " << RadToDeg(two_view_geometry.tri_angle)
-            << std::endl;
-
   if (static_cast<int>(two_view_geometry.inlier_matches.size()) >=
           options.init_min_num_inliers &&
       std::abs(two_view_geometry.cam2_from_cam1.translation.z()) <
