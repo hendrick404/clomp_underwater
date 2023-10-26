@@ -403,6 +403,16 @@ void CameraTab::itemChanged(QTableWidgetItem* item) {
       camera.SetPriorFocalLength(
           static_cast<bool>(item->data(Qt::DisplayRole).toInt()));
       break;
+    case 7:
+      if (!camera.SetRefracParamsFromString(
+              item->text().toUtf8().constData())) {
+        QMessageBox::critical(
+            this, "", tr("Invalid refractive camera parameters."));
+        table_widget_->blockSignals(true);
+        item->setText(QString::fromStdString(VectorToCSV(prev_params)));
+        table_widget_->blockSignals(false);
+      }
+      break;
     default:
       break;
   }

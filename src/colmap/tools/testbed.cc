@@ -62,7 +62,7 @@ int main(int argc, char* argv[]) {
 
     recon.WriteText(output_path);
   }
-  if (true) {
+  if (false) {
     Camera camera;
     camera.SetWidth(2048);
     camera.SetHeight(1536);
@@ -107,6 +107,15 @@ int main(int argc, char* argv[]) {
                 << ", virtual cam center: " << virtual_cam_center.transpose()
                 << std::endl;
     }
+  }
+
+  if(true){
+    Eigen::Vector3d int_normal;
+    int_normal[0] = RandomUniformReal(-0.3, 0.3);
+    int_normal[1] = RandomUniformReal(-0.3, 0.3);
+    int_normal[2] = RandomUniformReal(-0.7, 1.3);
+    int_normal.normalize();
+    std::cout << "int nromal: " << int_normal.transpose() << std::endl;
   }
   return true;
 }
