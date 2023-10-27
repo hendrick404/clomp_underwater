@@ -361,7 +361,7 @@ std::string FlatPort::InitializeRefracModelParamsInfo() {
 }
 
 std::vector<size_t> FlatPort::InitializeOptimizableParamsIdxs() {
-  return {0, 1, 2, 3, 4};
+  return {0, 1, 2, 3};
 }
 
 template <typename CameraModel, typename T>
@@ -384,6 +384,7 @@ void FlatPort::CamFromImg(const T* cam_params,
   (*dir).normalize();
   const Eigen::Matrix<T, 3, 1> int_normal(
       refrac_params[0], refrac_params[1], refrac_params[2]);
+
   const T int_dist = refrac_params[3];
   const T int_thick = refrac_params[4];
   const T na = refrac_params[5];

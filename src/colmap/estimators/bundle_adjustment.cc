@@ -697,12 +697,26 @@ void BundleAdjuster::ParameterizeCameras(Reconstruction* reconstruction) {
                             optimizable_refrac_params_idxs.begin(),
                             optimizable_refrac_params_idxs.end(),
                             std::back_inserter(const_params_idxs));
-
-        if (const_params_idxs.size() > 0) {
-          SetSubsetManifold(static_cast<int>(camera.NumRefracParams()),
-                            const_params_idxs,
-                            problem_.get(),
-                            camera.RefracParamsData());
+        if (camera.RefracModelName() == "FLATPORT") {
+          for (int& idx : const_params_idxs) {
+            idx -= 3;
+          }
+          ceres::SphereManifold<3> sphere_manifold = ceres::SphereManifold<3>();
+          ceres::SubsetManifold subset_manifold = ceres::SubsetManifold(
+              camera.NumRefracParams() - 3, const_params_idxs);
+          ceres::ProductManifold<ceres::SphereManifold<3>,
+                                 ceres::SubsetManifold>* product_manifold =
+              new ceres::ProductManifold<ceres::SphereManifold<3>,
+                                         ceres::SubsetManifold>(
+                  sphere_manifold, subset_manifold);
+          problem_->SetManifold(camera.RefracParamsData(), product_manifold);
+        } else {
+          if (const_params_idxs.size() > 0) {
+            SetSubsetManifold(static_cast<int>(camera.NumRefracParams()),
+                              const_params_idxs,
+                              problem_.get(),
+                              camera.RefracParamsData());
+          }
         }
       }
     }

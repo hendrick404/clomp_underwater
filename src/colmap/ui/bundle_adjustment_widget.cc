@@ -75,6 +75,8 @@ BundleAdjustmentWidget::BundleAdjustmentWidget(MainWindow* main_window,
                 "refine_extrinsics");
   AddOptionBool(&options->bundle_adjustment->enable_refraction,
                 "enable_refraction");
+  AddOptionBool(&options->bundle_adjustment->refine_refrac_params,
+                "refine_refrac_params");
 
   QPushButton* run_button = new QPushButton(tr("Run"), this);
   grid_layout_->addWidget(run_button, grid_layout_->rowCount(), 1);

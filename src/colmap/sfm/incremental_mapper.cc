@@ -839,7 +839,7 @@ bool IncrementalMapper::AdjustGlobalBundle(
 
   // Normalize scene for numerical stability and
   // to avoid large scale changes in viewer.
-  if (!options.use_pose_prior) {
+  if (!options.use_pose_prior && !options.enable_refraction) {
     reconstruction_->Normalize();
   }
   if (ba_options.refine_prior_from_cam) {
