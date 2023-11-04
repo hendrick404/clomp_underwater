@@ -678,7 +678,6 @@ void BundleAdjuster::ParameterizeCameras(Reconstruction* reconstruction) {
   }
 
   if (options_.enable_refraction) {
-    // Currently, we don't optimize refrac parameters.
     for (const camera_t camera_id : camera_ids_) {
       Camera& camera = reconstruction->Camera(camera_id);
       if (!options_.refine_refrac_params) {
@@ -701,6 +700,8 @@ void BundleAdjuster::ParameterizeCameras(Reconstruction* reconstruction) {
           for (int& idx : const_params_idxs) {
             idx -= 3;
           }
+#if CERES_VERSION_MAJOR >= 3 || \
+    (CERES_VERSION_MAJOR == 2 && CERES_VERSION_MINOR >= 1)
           ceres::SphereManifold<3> sphere_manifold = ceres::SphereManifold<3>();
           ceres::SubsetManifold subset_manifold = ceres::SubsetManifold(
               camera.NumRefracParams() - 3, const_params_idxs);
@@ -710,6 +711,20 @@ void BundleAdjuster::ParameterizeCameras(Reconstruction* reconstruction) {
                                          ceres::SubsetManifold>(
                   sphere_manifold, subset_manifold);
           problem_->SetManifold(camera.RefracParamsData(), product_manifold);
+#else
+          ceres::HomogeneousVectorParameterization* sphere_manifold =
+              new ceres::HomogeneousVectorParameterization(3);
+          ceres::SubsetParameterization* subset_manifold =
+              new ceres::SubsetParameterization(camera.NumRefracParams() - 3,
+                                                const_params_idxs);
+
+          ceres::ProductParameterization* product_manifold =
+              new ceres::ProductParameterization(sphere_manifold,
+                                                 subset_manifold);
+
+          problem_->SetParameterization(camera.RefracParamsData(),
+                                        product_manifold);
+#endif
         } else {
           if (const_params_idxs.size() > 0) {
             SetSubsetManifold(static_cast<int>(camera.NumRefracParams()),
