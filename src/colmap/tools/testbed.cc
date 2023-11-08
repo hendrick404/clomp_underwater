@@ -1,25 +1,26 @@
 #include "colmap/geometry/rigid3.h"
 #include "colmap/math/random.h"
+#include "colmap/scene/database_cache.h"
 #include "colmap/scene/reconstruction.h"
 #include "colmap/util/logging.h"
 
 using namespace colmap;
 
 int main(int argc, char* argv[]) {
-  if (false) {
+  if (true) {
     // For David, add additional images to the reconstruction.
     const std::string input_path =
         "/data2/mshe/omv_src/colmap-project/dataset/2023-08_AL-Daycruise/"
-        "2023-08-10_Alkor_0001_GMR_PFM-109_AUV-LUISE_Mission-305/"
-        "reconstruct_last_100/result/exp1/sparse/0/";
+        "2023-08-10_Alkor_0001_GMR_PFM-109_AUV-LUISE_Mission-307/"
+        "reconstruction_subset/result/exp1/sparse/0/";
     const std::string database_path =
         "/data2/mshe/omv_src/colmap-project/dataset/2023-08_AL-Daycruise/"
-        "2023-08-10_Alkor_0001_GMR_PFM-109_AUV-LUISE_Mission-305/"
-        "reconstruct_last_100/result/database.db";
+        "2023-08-10_Alkor_0001_GMR_PFM-109_AUV-LUISE_Mission-307/"
+        "reconstruction_subset/result/database.db";
     const std::string output_path =
         "/data2/mshe/omv_src/colmap-project/dataset/2023-08_AL-Daycruise/"
-        "2023-08-10_Alkor_0001_GMR_PFM-109_AUV-LUISE_Mission-305/"
-        "reconstruct_last_100/result/exp1/for_david/sparse/";
+        "2023-08-10_Alkor_0001_GMR_PFM-109_AUV-LUISE_Mission-307/"
+        "reconstruction_subset/result/exp1/for_david/sparse/";
 
     Rigid3d prior_from_cam(
         Eigen::Quaterniond(0.711987, -0.00218027, -0.00757204, 0.702149),
@@ -39,29 +40,86 @@ int main(int argc, char* argv[]) {
               << std::endl;
 
     // Extra images I want to manually add:
-    std::vector<image_t> extra_image_ids;
-    extra_image_ids.resize(42);
-    std::iota(extra_image_ids.begin(), extra_image_ids.end(), 40);
+    std::unordered_set<image_t> extra_image_ids = {
+        1,   2,   3,   4,   5,   6,   7,   8,   9,   10,  11,  12,  13,
+        14,  15,  16,  17,  18,  290, 291, 292, 293, 294, 295, 296, 297,
+        298, 299, 300, 301, 302, 303, 304, 305, 306, 307, 308};
 
+    // extra_image_ids = {};
     std::cout << "Extra image ids: ";
     for (image_t id : extra_image_ids) {
       std::cout << id << " ";
     }
     std::cout << std::endl;
 
-    for (const auto image_id : extra_image_ids) {
-      Image image_db = database.ReadImage(image_id);
+    // Take the absolute navigation pose and register them in the
+    // reconstruction.
 
-      const Rigid3d prior_from_world = image_db.CamFromWorldPrior();
-      const Rigid3d cam_from_world_prior = cam_from_prior * prior_from_world;
+    // for (const auto image_id : extra_image_ids) {
+    //   Image image_db = database.ReadImage(image_id);
 
-      image_db.CamFromWorld() = cam_from_world_prior;
-      image_db.SetRegistered(true);
-      recon.AddImage(image_db);
+    //   const Rigid3d prior_from_world = image_db.CamFromWorldPrior();
+    //   const Rigid3d cam_from_world_prior = cam_from_prior * prior_from_world;
+
+    //   image_db.CamFromWorld() = cam_from_world_prior;
+    //   image_db.SetRegistered(true);
+    //   recon.AddImage(image_db);
+    // }
+
+    // Take the relative navigation pose and register them in the
+    // reconstruction.
+
+    while (!extra_image_ids.empty()) {
+      image_t reg_image_id = 0;
+      image_t ref_image_id = 0;
+      for (image_t image_id : extra_image_ids) {
+        if (recon.ExistsImage(image_id - 1) &&
+            recon.IsImageRegistered(image_id - 1)) {
+          ref_image_id = image_id - 1;
+          reg_image_id = image_id;
+          break;
+        }
+        if (recon.ExistsImage(image_id + 1) &&
+            recon.IsImageRegistered(image_id + 1)) {
+          ref_image_id = image_id + 1;
+          reg_image_id = image_id;
+          break;
+        }
+      }
+      if (reg_image_id == ref_image_id || reg_image_id == 0 ||
+          ref_image_id == 0) {
+        std::cout << "No neighbor images found in the reconstruction"
+                  << std::endl;
+      } else {
+        std::cout << "Registering image " << reg_image_id
+                  << ", the reference image is: " << ref_image_id << std::endl;
+
+        Image image_reg_db = database.ReadImage(reg_image_id);
+        Image image_ref_db = database.ReadImage(ref_image_id);
+        const Image& image_ref = recon.Image(ref_image_id);
+
+        const Rigid3d& reg_prior_from_world = image_reg_db.CamFromWorldPrior();
+        const Rigid3d& ref_prior_from_world = image_ref_db.CamFromWorldPrior();
+
+        const Rigid3d reg_from_ref =
+            reg_prior_from_world * Inverse(ref_prior_from_world);
+
+        const Rigid3d& ref_cam_from_world = image_ref.CamFromWorld();
+
+        image_reg_db.CamFromWorld() = reg_from_ref * ref_cam_from_world;
+        image_reg_db.SetRegistered(true);
+        recon.AddImage(image_reg_db);
+        recon.RegisterImage(reg_image_id);
+
+        std::cout << "Number of registered images: " << recon.NumRegImages()
+                  << std::endl;
+
+        extra_image_ids.erase(reg_image_id);
+      }
     }
-
     recon.WriteText(output_path);
   }
+
   if (false) {
     Camera camera;
     camera.SetWidth(2048);
@@ -109,7 +167,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  if(true){
+  if (false) {
     Eigen::Vector3d int_normal;
     int_normal[0] = RandomUniformReal(-0.3, 0.3);
     int_normal[1] = RandomUniformReal(-0.3, 0.3);
@@ -117,5 +175,41 @@ int main(int argc, char* argv[]) {
     int_normal.normalize();
     std::cout << "int nromal: " << int_normal.transpose() << std::endl;
   }
+
+  if (false) {
+    // Create a reconstruction directly from navigation
+    const std::string database_path =
+        "/data2/mshe/omv_src/colmap-project/dataset/2023-08_AL-Daycruise/"
+        "2023-08-10_Alkor_0001_GMR_PFM-109_AUV-LUISE_Mission-307/"
+        "reconstruction/result/database.db";
+    const std::string output_path =
+        "/data2/mshe/omv_src/colmap-project/dataset/2023-08_AL-Daycruise/"
+        "2023-08-10_Alkor_0001_GMR_PFM-109_AUV-LUISE_Mission-307/"
+        "reconstruction/result/navigation/";
+
+    Rigid3d prior_from_cam(
+        Eigen::Quaterniond(0.711987, -0.00218027, -0.00757204, 0.702149),
+        Eigen::Vector3d(0.347714, 0.0330715, -0.529309));
+
+    Rigid3d cam_from_prior = Inverse(prior_from_cam);
+
+    Database database(database_path);
+
+    std::shared_ptr<DatabaseCache> database_cache =
+        DatabaseCache::Create(database, 0, true, {});
+
+    Reconstruction reconstruction;
+    reconstruction.Load(*database_cache.get());
+
+    for (const auto& image_it : reconstruction.Images()) {
+      Image& image = reconstruction.Image(image_it.first);
+
+      image.CamFromWorld() = cam_from_prior * image.CamFromWorldPrior();
+
+      reconstruction.RegisterImage(image_it.first);
+    }
+    reconstruction.Write(output_path);
+  }
+
   return true;
 }

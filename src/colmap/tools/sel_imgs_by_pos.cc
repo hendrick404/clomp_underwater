@@ -57,6 +57,7 @@ int main(int argc, char** argv) {
 
   for (const image_t image_id : reg_image_ids) {
     const Image& image = reconstruction->Image(image_id);
+
     Eigen::Vector3d position = image.ProjectionCenter();
     const double distance = (center_view_position - position).norm();
     if (distance > radius) {
@@ -69,6 +70,8 @@ int main(int argc, char** argv) {
     std::string src_path = JoinPaths(*options.image_path.get(), image_name);
     std::string dst_path = JoinPaths(output_path, "images", image_name);
 
+    // Create a parent directory in case the parent directory does not exist.
+    CreateDirIfNotExists(GetParentDir(dst_path));
     FileCopy(src_path, dst_path);
     if (copy_pose_priors) {
       std::string file_root;
@@ -78,6 +81,7 @@ int main(int argc, char** argv) {
       src_path = JoinPaths(pose_prior_path, csv_file);
       dst_path = JoinPaths(output_path, "pose_priors", csv_file);
       if (ExistsFile(src_path)) {
+        CreateDirIfNotExists(GetParentDir(dst_path));
         FileCopy(src_path, dst_path);
       } else {
         std::cerr << "WARN: csv file" << file_root << "doesn't exist "
