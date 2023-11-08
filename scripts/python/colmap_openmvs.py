@@ -127,7 +127,7 @@ def parse_args():
         "-o", "--output_path", help="path to output directory", type=str, required=True
     )
     group.add_argument(
-        "-e", "--exp_name", help="experiment name", type=str, default="exp1"
+        "-e", "--exp_name", help="experiment name", type=str, default="exp0"
     )
     group.add_argument(
         "--gpu_index",
