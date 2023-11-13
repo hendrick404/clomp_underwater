@@ -815,8 +815,13 @@ int RunHybridMapper(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  reconstruction_manager->Write(output_path);
-  options.Write(JoinPaths(output_path, "project.ini"));
+  for (size_t i = 0; i < reconstruction_manager->Size(); ++i) {
+    const std::string reconstruction_path =
+        JoinPaths(output_path, std::to_string(i));
+    CreateDirIfNotExists(reconstruction_path);
+    reconstruction_manager->Get(i)->Write(reconstruction_path);
+    options.Write(JoinPaths(reconstruction_path, "project.ini"));
+  }
 
   return EXIT_SUCCESS;
 }

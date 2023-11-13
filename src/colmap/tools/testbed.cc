@@ -12,21 +12,15 @@ int main(int argc, char* argv[]) {
     const std::string input_path =
         "/data2/mshe/omv_src/colmap-project/dataset/2023-08_AL-Daycruise/"
         "2023-08-10_Alkor_0001_GMR_PFM-109_AUV-LUISE_Mission-305/"
-        "reconstruct_last_100/result_use_opencv_fisheye/exp0/sparse/0/";
+        "reconstruction_subset/result/exp0/sparse/0/";
     const std::string database_path =
         "/data2/mshe/omv_src/colmap-project/dataset/2023-08_AL-Daycruise/"
         "2023-08-10_Alkor_0001_GMR_PFM-109_AUV-LUISE_Mission-305/"
-        "reconstruct_last_100/result_use_opencv_fisheye/database.db";
+        "reconstruction_subset/result/database.db";
     const std::string output_path =
         "/data2/mshe/omv_src/colmap-project/dataset/2023-08_AL-Daycruise/"
         "2023-08-10_Alkor_0001_GMR_PFM-109_AUV-LUISE_Mission-305/"
-        "reconstruct_last_100/result_use_opencv_fisheye/exp0/for_david/sparse/";
-
-    Rigid3d prior_from_cam(
-        Eigen::Quaterniond(0.711987, -0.00218027, -0.00757204, 0.702149),
-        Eigen::Vector3d(0.347714, 0.0330715, -0.529309));
-
-    Rigid3d cam_from_prior = Inverse(prior_from_cam);
+        "reconstruction_subset/result/exp0/for_david/sparse/";
 
     Reconstruction recon;
     recon.Read(input_path);
@@ -46,9 +40,9 @@ int main(int argc, char* argv[]) {
     //     298, 299, 300, 301, 302, 303, 304, 305, 306, 307, 308};
 
     std::unordered_set<image_t> extra_image_ids = {
-        40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53,
-        54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67,
-        68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81};
+        352, 353, 354, 355, 356, 357, 358, 359, 360, 361, 362, 363, 364, 365,
+        366, 367, 368, 369, 370, 371, 372, 373, 374, 375, 376, 377, 378, 379,
+        380, 381, 382, 383, 384, 385, 386, 387, 388, 389, 390, 391, 392, 393};
 
     // extra_image_ids = {};
     std::cout << "Extra image ids: ";

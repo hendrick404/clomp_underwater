@@ -60,8 +60,8 @@ bool PosePrior::Read(const std::string& path,
                                 std::find(csv_header_values.begin(),
                                           csv_header_values.end(),
                                           "Latitude [deg]"));
-  // In the AUV-mapping scenario, we extract depth instead of altitude since the
-  // altitude is a relative measure of distance from the vehicle body to the
+  // In the AUV-mapping scenario, we extract depth instead of altitude since
+  // the altitude is a relative measure of distance from the vehicle body to the
   // object's surface.
   auto iter_depth = std::distance(
       csv_header_values.begin(),
