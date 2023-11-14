@@ -310,7 +310,7 @@ void BaseCameraRefracModel<CameraRefracModel>::IterativeProjection(
   const T d = uvw.norm();
   const size_t kNumIterations = 100;
   const T kMaxStepNorm = T(1e-10);
-  const T kRelStepSize = T(1e-7);
+  const T kRelStepSize = T(1e-9);
   const T kAbsStepSize = T(1e-6);
 
   Eigen::Matrix<T, 3, 2> J;
@@ -327,7 +327,7 @@ void BaseCameraRefracModel<CameraRefracModel>::IterativeProjection(
     const T step1 = std::max(kAbsStepSize, ceres::abs(kRelStepSize * X(1)));
     CameraRefracModel::template CamFromImgPoint<CameraModel, T>(
         cam_params, refrac_params, X(0), X(1), d, &err);
-    err = uvw - err;
+    err = err - uvw;
     CameraRefracModel::template CamFromImgPoint<CameraModel, T>(
         cam_params, refrac_params, X(0) - step0, X(1), d, &dx_0b);
 
@@ -340,13 +340,15 @@ void BaseCameraRefracModel<CameraRefracModel>::IterativeProjection(
     CameraRefracModel::template CamFromImgPoint<CameraModel, T>(
         cam_params, refrac_params, X(0), X(1) + step1, d, &dx_1f);
 
-    J.col(0) = (dx_0b - dx_0f) / (T(2.0) * step0);
-    J.col(1) = (dx_1b - dx_1f) / (T(2.0) * step1);
+    J.col(0) = (dx_0f - dx_0b) / (T(2) * step0);
+    J.col(1) = (dx_1f - dx_1b) / (T(2) * step1);
     Eigen::Matrix<T, 2, 2> H = J.transpose() * J;
-    Eigen::Matrix<T, 2, 1> b = T(-1.0) * J.transpose() * err;
+    Eigen::Matrix<T, 2, 1> b = J.transpose() * err;
     const Eigen::Matrix<T, 2, 1> step_x = H.partialPivLu().solve(b);
-    X += step_x;
-    if (step_x.squaredNorm() < kMaxStepNorm) break;
+    X -= step_x;
+    if (step_x.squaredNorm() < kMaxStepNorm) {
+      break;
+    }
   }
   *x = X(0);
   *y = X(1);

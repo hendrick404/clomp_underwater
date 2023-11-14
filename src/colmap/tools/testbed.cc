@@ -7,7 +7,7 @@
 using namespace colmap;
 
 int main(int argc, char* argv[]) {
-  if (true) {
+  if (false) {
     // For David, add additional images to the reconstruction.
     const std::string input_path =
         "/data2/mshe/omv_src/colmap-project/dataset/2023-08_AL-Daycruise/"
@@ -208,6 +208,73 @@ int main(int argc, char* argv[]) {
       reconstruction.RegisterImage(image_it.first);
     }
     reconstruction.Write(output_path);
+  }
+
+  if(false){
+    std::cout << std::numeric_limits<double>::epsilon() << std::endl;
+  }
+  if (true) {
+    // Check projection at the image boundary.
+    // Setup parameters
+    const size_t width = 1000;
+    const size_t height = 1000;
+    const double fov = 90;
+
+    const double focal_length = 1000.0;
+
+    std::vector<double> cam_params = {focal_length,
+                                      static_cast<double>(width) * .5,
+                                      static_cast<double>(height) * .5};
+
+    // Randomly generate a rotation around the normal
+
+    Eigen::Vector3d int_normal;
+    int_normal[0] = colmap::RandomUniformReal(-0.3, 0.3);
+    int_normal[1] = colmap::RandomUniformReal(-0.3, 0.3);
+    int_normal[2] = colmap::RandomUniformReal(0.7, 1.3);
+
+    int_normal.normalize();
+
+    std::vector<double> flatport_params = {int_normal[0],
+                                           int_normal[1],
+                                           int_normal[2],
+                                           0.5,
+                                           0.007,
+                                           1.0,
+                                           1.52,
+                                           1.33};
+
+    colmap::Camera camera;
+    camera.SetWidth(width);
+    camera.SetHeight(height);
+    camera.SetModelIdFromName("SIMPLE_PINHOLE");
+    camera.SetParams(cam_params);
+
+    camera.SetRefracModelIdFromName("FLATPORT");
+    camera.SetRefracParams(flatport_params);
+
+    Eigen::Vector2d point1(0.001, 789.235);
+    double d1 = 1.75;
+
+    Eigen::Vector3d point3D_cam1 = camera.CamFromImgRefracPoint(point1, d1);
+
+    std::cout << "Point3D cam1: " << point3D_cam1.transpose() << std::endl;
+
+    Eigen::Vector2d proj1 = camera.ImgFromCamRefrac(point3D_cam1);
+
+    Eigen::Vector2d point2(0.0, 789.235);
+    double d2 = 1.75;
+
+    Eigen::Vector3d point3D_cam2 = camera.CamFromImgRefracPoint(point2, d2);
+
+    std::cout << "Point3D cam2: " << point3D_cam2.transpose() << std::endl;
+
+    Eigen::Vector2d proj2 = camera.ImgFromCamRefrac(point3D_cam2);
+
+    std::cout << "point1: " << point1.transpose()
+              << " , projection1: " << proj1.transpose() << std::endl;
+    std::cout << "point2: " << point2.transpose()
+              << " , projection2: " << proj2.transpose() << std::endl;
   }
 
   return true;

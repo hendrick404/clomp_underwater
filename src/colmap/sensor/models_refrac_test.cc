@@ -60,8 +60,10 @@ void TestCamFromImgToImg(const std::vector<double>& cam_params,
       uvw.z(),
       &x,
       &y);
-  EXPECT_NEAR(x, x0, 1e-6);
-  EXPECT_NEAR(y, y0, 1e-6);
+  EXPECT_NEAR(x, x0, 1e-6) << "Expect x to be " << x0 << ", but " << x
+                           << " computed";
+  EXPECT_NEAR(y, y0, 1e-6) << "Expect y to be " << y0 << ", but " << y
+                           << " computed";
 }
 
 template <typename CameraRefracModel, typename CameraModel>
@@ -113,8 +115,8 @@ void TestModel(const std::vector<double>& cam_params,
     }
   }
 
-  for (int x = 0; x <= 5568; x += 50) {
-    for (int y = 0; y <= 4176; y += 50) {
+  for (double x = 0; x <= 5568.0; x += 50.0) {
+    for (double y = 0; y <= 4176.0; y += 50.0) {
       for (int n = 0; n < 10; n++) {
         const double d = RandomUniformReal(0.2, 10.0);
         TestCamFromImgToImg<CameraRefracModel, CameraModel>(
