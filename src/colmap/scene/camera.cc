@@ -345,12 +345,6 @@ Eigen::Vector3d Camera::RefractionAxis() const {
   return CameraRefracModelRefractionAxis(refrac_model_id_, refrac_params_);
 }
 
-Eigen::Quaterniond Camera::VirtualFromRealRotation() const {
-  return Eigen::Quaterniond::FromTwoVectors(RefractionAxis(),
-                                            Eigen::Vector3d::UnitZ())
-      .normalized();
-}
-
 Eigen::Vector3d Camera::VirtualCameraCenter(const Ray3D& ray_refrac) const {
   Eigen::Vector3d virtual_cam_center;
   IntersectLinesWithTolerance<double>(Eigen::Vector3d::Zero(),
@@ -391,14 +385,13 @@ Camera Camera::VirtualCamera(const Eigen::Vector2d& image_point,
 void Camera::ComputeVirtual(const Eigen::Vector2d& point2D,
                             Camera& virtual_camera,
                             Rigid3d& virtual_from_real) const {
-  Eigen::Quaterniond virtual_from_real_rotation = VirtualFromRealRotation();
+  const Eigen::Quaterniond virtual_from_real_rotation(1.0, 0.0, 0.0, 0.0);
 
   const Ray3D ray_refrac = CamFromImgRefrac(point2D);
   const Eigen::Vector3d virtual_cam_center = VirtualCameraCenter(ray_refrac);
   virtual_from_real = Rigid3d(virtual_from_real_rotation,
                               virtual_from_real_rotation * -virtual_cam_center);
-  virtual_camera = VirtualCamera(
-      point2D, (virtual_from_real_rotation * ray_refrac.dir).hnormalized());
+  virtual_camera = VirtualCamera(point2D, ray_refrac.dir.hnormalized());
 }
 
 void Camera::ComputeVirtuals(const std::vector<Eigen::Vector2d>& points2D,

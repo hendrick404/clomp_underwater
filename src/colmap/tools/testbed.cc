@@ -1,7 +1,9 @@
+#include "colmap/estimators/cost_functions.h"
 #include "colmap/geometry/rigid3.h"
 #include "colmap/math/random.h"
 #include "colmap/scene/database_cache.h"
 #include "colmap/scene/reconstruction.h"
+#include "colmap/sensor/models_refrac.h"
 #include "colmap/util/logging.h"
 
 using namespace colmap;
@@ -210,10 +212,10 @@ int main(int argc, char* argv[]) {
     reconstruction.Write(output_path);
   }
 
-  if(false){
+  if (false) {
     std::cout << std::numeric_limits<double>::epsilon() << std::endl;
   }
-  if (true) {
+  if (false) {
     // Check projection at the image boundary.
     // Setup parameters
     const size_t width = 1000;
@@ -275,6 +277,186 @@ int main(int argc, char* argv[]) {
               << " , projection1: " << proj1.transpose() << std::endl;
     std::cout << "point2: " << point2.transpose()
               << " , projection2: " << proj2.transpose() << std::endl;
+  }
+
+  if (true) {
+    SetPRNGSeed(time(NULL));
+    Camera camera;
+    camera.SetWidth(2048);
+    camera.SetHeight(1536);
+    camera.SetModelIdFromName("PINHOLE");
+    std::vector<double> params = {
+        1300.900000, 1300.900000, 1024.000000, 768.000000};
+    camera.SetParams(params);
+
+    bool flatport = true;
+
+    if (flatport) {
+      // Flatport setup.
+      camera.SetRefracModelIdFromName("FLATPORT");
+      Eigen::Vector3d int_normal;
+      int_normal[0] = RandomUniformReal(-0.3, 0.3);
+      int_normal[1] = RandomUniformReal(-0.3, 0.3);
+      int_normal[2] = RandomUniformReal(0.3, 2.3);
+
+      int_normal.normalize();
+
+      std::vector<double> flatport_params_gt = {int_normal[0],
+                                                int_normal[1],
+                                                int_normal[2],
+                                                RandomUniformReal(0.002, 0.05),
+                                                0.007,
+                                                1.0,
+                                                1.52,
+                                                1.334};
+      camera.SetRefracParams(flatport_params_gt);
+    } else {
+      // Domeport setup.
+      camera.SetRefracModelIdFromName("DOMEPORT");
+      Eigen::Vector3d decentering;
+      decentering[0] = RandomUniformReal(-0.03, 0.03);
+      decentering[1] = RandomUniformReal(-0.001, 0.001);
+      decentering[2] = RandomUniformReal(-0.001, 0.001);
+      // decentering[0] = 0.0;
+      // decentering[1] = 0.03;
+      // decentering[2] = 0.00;
+
+      std::vector<double> domeport_params_gt = {decentering[0],
+                                                decentering[1],
+                                                decentering[2],
+                                                0.05,
+                                                0.007,
+                                                1.0,
+                                                1.52,
+                                                1.334};
+      camera.SetRefracParams(domeport_params_gt);
+    }
+
+    std::cout << "GT refrac params: " << std::endl;
+    std::cout << camera.RefracParamsToString() << std::endl;
+
+    std::vector<Eigen::Vector2d> points2D;
+    std::vector<Eigen::Vector2d> points2D_refrac;
+    std::vector<Eigen::Vector3d> points3D;
+
+    size_t num_points = 200;
+
+    const double qx = RandomUniformReal(0.0, 1.0);
+    const double tx = RandomUniformReal(0.0, 1.0);
+
+    const Rigid3d cam_from_world_gt(
+        Eigen::Quaterniond(1.0, qx, 0.0, 0.0).normalized(),
+        Eigen::Vector3d(tx, 0.0, 0.0));
+
+    for (size_t i = 0; i < num_points; i++) {
+      Eigen::Vector2d point2D_refrac;
+      point2D_refrac.x() =
+          RandomUniformReal(0.5, static_cast<double>(camera.Width()) - 0.5);
+      point2D_refrac.y() =
+          RandomUniformReal(0.5, static_cast<double>(camera.Height()) - 0.5);
+
+      const double depth = RandomUniformReal(0.5, 10.0);
+      const Eigen::Vector3d point3D_local =
+          camera.CamFromImgRefracPoint(point2D_refrac, depth);
+
+      const Eigen::Vector3d point3D_world =
+          Inverse(cam_from_world_gt) * point3D_local;
+
+      // Now project the point in-air.
+      Eigen::Vector2d point2D = camera.ImgFromCam(point3D_local.hnormalized());
+
+      points2D.push_back(point2D);
+      points2D_refrac.push_back(point2D_refrac);
+      points3D.push_back(point3D_world);
+    }
+
+    ceres::Problem problem;
+
+    if (flatport) {
+      std::vector<double> flatport_params = camera.RefracParams();
+      flatport_params[0] = 0.0;
+      flatport_params[1] = 0.0;
+      flatport_params[2] = 1.0;
+      flatport_params[3] = 0.005;
+      camera.SetRefracParams(flatport_params);
+    } else {
+      std::vector<double> domeport_params = camera.RefracParams();
+      domeport_params[0] = 0.00;
+      domeport_params[1] = 0.00;
+      domeport_params[2] = 0.002;
+      camera.SetRefracParams(domeport_params);
+    }
+
+    std::cout << "Initial refrac params: " << std::endl;
+    std::cout << camera.RefracParamsToString() << std::endl;
+
+    for (size_t i = 0; i < num_points; i++) {
+      const Eigen::Vector2d& point2D_refrac = points2D_refrac[i];
+      Eigen::Vector3d& point3D = points3D[i];
+
+      ceres::CostFunction* cost_function;
+      if (flatport) {
+        cost_function = ReprojErrorRefracConstantPoseCostFunction<
+            FlatPort,
+            PinholeCameraModel>::Create(cam_from_world_gt, point2D_refrac);
+      } else {
+        cost_function = ReprojErrorRefracConstantPoseCostFunction<
+            DomePort,
+            PinholeCameraModel>::Create(cam_from_world_gt, point2D_refrac);
+      }
+      problem.AddResidualBlock(cost_function,
+                               nullptr,
+                               point3D.data(),
+                               camera.ParamsData(),
+                               camera.RefracParamsData());
+      problem.SetParameterBlockConstant(point3D.data());
+    }
+
+    problem.SetParameterBlockConstant(camera.ParamsData());
+
+    std::vector<int> refrac_params_idxs(camera.NumRefracParams());
+    std::iota(refrac_params_idxs.begin(), refrac_params_idxs.end(), 0);
+
+    const std::vector<size_t>& optimizable_refrac_params_idxs =
+        camera.OptimizableRefracParamsIdxs();
+
+    std::vector<int> const_params_idxs;
+    std::set_difference(refrac_params_idxs.begin(),
+                        refrac_params_idxs.end(),
+                        optimizable_refrac_params_idxs.begin(),
+                        optimizable_refrac_params_idxs.end(),
+                        std::back_inserter(const_params_idxs));
+    if (flatport) {
+      for (int& idx : const_params_idxs) {
+        idx -= 3;
+      }
+      ceres::SphereManifold<3> sphere_manifold = ceres::SphereManifold<3>();
+      ceres::SubsetManifold subset_manifold = ceres::SubsetManifold(
+          camera.NumRefracParams() - 3, const_params_idxs);
+      ceres::ProductManifold<ceres::SphereManifold<3>, ceres::SubsetManifold>*
+          product_manifold =
+              new ceres::ProductManifold<ceres::SphereManifold<3>,
+                                         ceres::SubsetManifold>(
+                  sphere_manifold, subset_manifold);
+      problem.SetManifold(camera.RefracParamsData(), product_manifold);
+    } else {
+      SetSubsetManifold(static_cast<int>(camera.NumRefracParams()),
+                        const_params_idxs,
+                        &problem,
+                        camera.RefracParamsData());
+    }
+    ceres::Solver::Options solver_options;
+    ceres::Solver::Summary summary;
+
+    solver_options.function_tolerance = 1e-20;
+    solver_options.gradient_tolerance = 1e-20;
+    solver_options.linear_solver_type = ceres::DENSE_QR;
+    solver_options.minimizer_progress_to_stdout = true;
+
+    ceres::Solve(solver_options, &problem, &summary);
+
+    std::cout << "Optimized refrac params: " << std::endl;
+    std::cout << camera.RefracParamsToString() << std::endl;
   }
 
   return true;

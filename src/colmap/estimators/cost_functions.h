@@ -612,10 +612,8 @@ class ReprojErrorRefracCostFunction {
     // Compute the virtual from real transformation.
     Eigen::Matrix<T, 3, 1> refrac_axis;
     CameraRefracModel::RefractionAxis(refrac_params, &refrac_axis);
-    const Eigen::Quaternion<T> virtual_from_real_rotation =
-        Eigen::Quaternion<T>::FromTwoVectors(refrac_axis,
-                                             Eigen::Matrix<T, 3, 1>::UnitZ())
-            .normalized();
+    const Eigen::Quaternion<T> virtual_from_real_rotation(
+        T(1), T(0), T(0), T(0));
 
     Eigen::Matrix<T, 3, 1> virtual_cam_center;
     IntersectLinesWithTolerance<T>(Eigen::Matrix<T, 3, 1>::Zero(),
@@ -627,8 +625,7 @@ class ReprojErrorRefracCostFunction {
     const Eigen::Matrix<T, 3, 1> virtual_from_real_translation =
         virtual_from_real_rotation * -virtual_cam_center;
 
-    const Eigen::Matrix<T, 2, 1> cam_point =
-        (virtual_from_real_rotation * ray_dir).hnormalized();
+    const Eigen::Matrix<T, 2, 1> cam_point = ray_dir.hnormalized();
 
     const T f = camera_params[0];
     const T c1 = T(observed_x_) - f * cam_point[0];
@@ -697,10 +694,7 @@ class ReprojErrorRefracConstantPoseCostFunction {
     // Compute the virtual from real transformation.
     Eigen::Matrix<T, 3, 1> refrac_axis;
     CameraRefracModel::RefractionAxis(refrac_params, &refrac_axis);
-    const Eigen::Quaternion<T> virtual_from_real_rotation =
-        Eigen::Quaternion<T>::FromTwoVectors(refrac_axis,
-                                             Eigen::Matrix<T, 3, 1>::UnitZ())
-            .normalized();
+    Eigen::Quaternion<T> virtual_from_real_rotation(T(1), T(0), T(0), T(0));
 
     Eigen::Matrix<T, 3, 1> virtual_cam_center;
     IntersectLinesWithTolerance<T>(Eigen::Matrix<T, 3, 1>::Zero(),
@@ -712,8 +706,7 @@ class ReprojErrorRefracConstantPoseCostFunction {
     const Eigen::Matrix<T, 3, 1> virtual_from_real_translation =
         virtual_from_real_rotation * -virtual_cam_center;
 
-    const Eigen::Matrix<T, 2, 1> cam_point =
-        (virtual_from_real_rotation * ray_dir).hnormalized();
+    const Eigen::Matrix<T, 2, 1> cam_point = ray_dir.hnormalized();
 
     const T f = camera_params[0];
     const T c1 = T(observed_x_) - f * cam_point[0];

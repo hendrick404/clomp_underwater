@@ -194,9 +194,6 @@ class Camera {
   // Return the refraction axis if the camera is refractive.
   Eigen::Vector3d RefractionAxis() const;
 
-  // Return the rotation from the real camera to virtual camera.
-  Eigen::Quaterniond VirtualFromRealRotation() const;
-
   Eigen::Vector3d VirtualCameraCenter(const Ray3D& ray_refrac) const;
 
   // If the camera is refractive, this function returns a simple pinhole virtual

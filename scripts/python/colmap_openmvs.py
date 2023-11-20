@@ -25,6 +25,8 @@ CAMERA_MODELS = [
     "METASHAPE_FISHEYE",
 ]
 
+CAMERA_REFRAC_MODELS = ["FLATPORT", "DOMEPORT"]
+
 
 def print_heading1(heading):
     print()
@@ -212,6 +214,12 @@ def parse_args():
         help="whether to use refractive camera model in reconstruction",
         action="store_true",
         default=False,
+    )
+    group.add_argument(
+        "--camera_refrac_model",
+        help="camera refractive model for sparse reconstruction",
+        choices=CAMERA_REFRAC_MODELS,
+        default="FLATPORT",
     )
     group.add_argument(
         "--camera_refrac_params",
@@ -479,6 +487,7 @@ class COLMAPOpenMVSPipeline:
         self.known_intrin: bool = False if args.camera_params == "" else True
         self.camera_params: str = args.camera_params
         self.enable_refraction: bool = args.enable_refraction
+        self.camera_refrac_model: str = args.camera_refrac_model
         self.camera_refrac_params: str = args.camera_refrac_params
         self.max_image_size: int = args.max_image_size
         self.domain_size_pooling: bool = args.domain_size_pooling
@@ -679,6 +688,8 @@ class COLMAPOpenMVSPipeline:
 
             if self.enable_refraction:
                 extractor_cmds += [
+                    "--ImageReader.camera_refrac_model",
+                    self.camera_refrac_model,
                     "--ImageReader.camera_refrac_params",
                     self.camera_refrac_params,
                 ]
@@ -946,6 +957,10 @@ class COLMAPOpenMVSPipeline:
                 # options to clean the mesh
                 "--decimate",
                 f"{self.decimate}",
+                "--remove-spurious",
+                "30",
+                "--close-holes",
+                "100",
             ]
             print_heading1(f"Running ReconstructMesh for chunk {chunk_ids[i]}")
             exec_cmd(cmds)
@@ -969,6 +984,8 @@ class COLMAPOpenMVSPipeline:
                 f"{self.min_resolution}",
                 "--max-face-area",
                 f"{self.max_face_area}",
+                "--scales",
+                "5",
             ]
             print_heading1(f"Running RefineMesh for chunk {chunk_ids[i]}")
             exec_cmd(cmds)
