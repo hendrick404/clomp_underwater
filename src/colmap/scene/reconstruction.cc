@@ -1471,7 +1471,8 @@ size_t Reconstruction::FilterPoints3DWithLargeReprojectionError(
                                             image.CamFromWorld(),
                                             camera,
                                             is_refractive);
-      if (squared_reproj_error > max_squared_reproj_error) {
+      if (std::isnan(squared_reproj_error) ||
+          squared_reproj_error > max_squared_reproj_error) {
         track_els_to_delete.push_back(track_el);
       } else {
         reproj_error_sum += std::sqrt(squared_reproj_error);
