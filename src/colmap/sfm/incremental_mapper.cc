@@ -1340,7 +1340,7 @@ bool IncrementalMapper::EstimateInitialTwoViewGeometry(
   two_view_geometry_options.ransac_options.max_error = options.init_max_error;
   TwoViewGeometry two_view_geometry;
 
-  if (true) {
+  if (!options.enable_refraction) {
     two_view_geometry = EstimateCalibratedTwoViewGeometry(
         camera1, points1, camera2, points2, matches, two_view_geometry_options);
 
@@ -1357,7 +1357,6 @@ bool IncrementalMapper::EstimateInitialTwoViewGeometry(
     camera1.ComputeVirtuals(points1, virtual_cameras1, virtual_from_reals1);
     camera2.ComputeVirtuals(points2, virtual_cameras2, virtual_from_reals2);
 
-    std::cout << "Estimate refractive two-view geometry" << std::endl;
     two_view_geometry_options.compute_relative_pose = true;
     two_view_geometry =
         EstimateRefractiveTwoViewGeometry(points1,
