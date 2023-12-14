@@ -959,10 +959,6 @@ class COLMAPOpenMVSPipeline:
                 # options to clean the mesh
                 "--decimate",
                 f"{self.decimate}",
-                "--remove-spurious",
-                "30",
-                "--close-holes",
-                "100",
             ]
             print_heading1(f"Running ReconstructMesh for chunk {chunk_ids[i]}")
             exec_cmd(cmds)
@@ -986,8 +982,6 @@ class COLMAPOpenMVSPipeline:
                 f"{self.min_resolution}",
                 "--max-face-area",
                 f"{self.max_face_area}",
-                "--scales",
-                "5",
             ]
             print_heading1(f"Running RefineMesh for chunk {chunk_ids[i]}")
             exec_cmd(cmds)
