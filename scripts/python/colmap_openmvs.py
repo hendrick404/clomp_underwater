@@ -120,7 +120,9 @@ def create_omv_camera_xml(w: int, h: int, output_path: str):
 
 def parse_args():
     # General arguments
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
     group = parser.add_argument_group("general")
     group.add_argument(
         "-i", "--image_path", help="path to images", type=str, required=True
