@@ -383,8 +383,8 @@ def parse_args():
         default=800,
     )
     group.add_argument(
-        "--ba_refine_intrin_after_num_images",
-        help="refine camera intrinsics after registering a certain number of images",
+        "--ba_fix_intrin_until_num_images",
+        help="fix camera intrinsics until registering a certain number of images",
         type=int,
         default=-1,
     )
@@ -523,7 +523,7 @@ class COLMAPOpenMVSPipeline:
         self.refine_prior_from_cam_after: int = (
             args.ba_refine_prior_from_cam_after_num_images
         )
-        self.refine_intrin_after: int = args.ba_refine_intrin_after_num_images
+        self.fix_intrin_until: int = args.ba_fix_intrin_until_num_images
         self.write_snapshot: bool = args.write_snapshot
         self.snapshot_images_freq: int = args.snapshot_images_freq
 
@@ -758,8 +758,8 @@ class COLMAPOpenMVSPipeline:
             "6",
             "--Mapper.tri_re_max_trials",
             "5",
-            "--Mapper.ba_refine_intrin_after_num_images",
-            f"{self.refine_intrin_after}",
+            "--Mapper.ba_fix_intrin_until_num_images",
+            f"{self.fix_intrin_until}",
             "--Mapper.ba_local_num_images",
             f"{self.ba_local_num_images}",
             "--Mapper.ba_local_max_num_iterations",
