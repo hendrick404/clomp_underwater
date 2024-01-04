@@ -1370,7 +1370,7 @@ bool IncrementalMapper::EstimateInitialTwoViewGeometry(
     // [Experimental]: Since the refractive two-view geometry can not estimate
     // scale well, it is not determined whether we should normalize the
     // estimated translation to unit length.
-    // two_view_geometry.cam2_from_cam1.translation.normalize();
+    two_view_geometry.cam2_from_cam1.translation.normalize();
   }
 
   if (options.enable_refraction) {
