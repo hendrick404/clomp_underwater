@@ -832,7 +832,7 @@ class COLMAPOpenMVSPipeline:
                 f"{self.ba_refine_refrac_params}",
             ]
             # If refraction is eanbled, the triangulation angle between 2 views is potentially reduced, here we half the min_tri_angle
-            mapper_cmds += ["--Mapper.init_min_tri_angle", "10"]
+            mapper_cmds += ["--Mapper.init_min_tri_angle", "16"]
 
         if self.write_snapshot and not self.hybrid_mapper:
             mapper_cmds += [

@@ -176,6 +176,15 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
     const std::vector<Camera>& virtual_cameras2,
     const std::vector<Rigid3d>& virtual_from_reals2,
     const FeatureMatches& matches,
-    const TwoViewGeometryOptions& options);
+    const TwoViewGeometryOptions& options,
+    bool refine = false);
+
+bool RefineRefractiveTwoViewGeometry(
+    const std::vector<Eigen::Vector2d>& points1,
+    const std::vector<Rigid3d>& virtual_from_reals1,
+    const std::vector<Eigen::Vector2d>& points2,
+    const std::vector<Rigid3d>& virtual_from_reals2,
+    const FeatureMatches& inlier_matches,
+    Rigid3d* rig2_from_rig1);
 
 }  // namespace colmap

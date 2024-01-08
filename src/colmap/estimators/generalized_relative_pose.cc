@@ -721,8 +721,9 @@ void GR6PEstimator::Residuals(const std::vector<X_t>& points1,
   CHECK_EQ(points1.size(), points2.size());
   residuals->resize(points1.size(), 0);
   for (size_t i = 0; i < points1.size(); ++i) {
-    const Rigid3d cam2_from_cam1 = points2[i].cam_from_rig * rig2_from_rig1 *
-                                   Inverse(points1[i].cam_from_rig);
+    const Rigid3d cam2_from_cam1 =
+        points2[i].cam_from_rig *
+        (rig2_from_rig1 * Inverse(points1[i].cam_from_rig));
     const Eigen::Matrix3d E = EssentialMatrixFromPose(cam2_from_cam1);
     const Eigen::Vector3d Ex1 =
         E * points1[i].ray_in_cam.hnormalized().homogeneous();

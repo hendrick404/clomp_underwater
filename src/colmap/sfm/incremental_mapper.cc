@@ -1366,7 +1366,8 @@ bool IncrementalMapper::EstimateInitialTwoViewGeometry(
                                           virtual_cameras2,
                                           virtual_from_reals2,
                                           matches,
-                                          two_view_geometry_options);
+                                          two_view_geometry_options,
+                                          true);
   }
 
   if (static_cast<int>(two_view_geometry.inlier_matches.size()) >=

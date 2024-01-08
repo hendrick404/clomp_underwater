@@ -29,6 +29,7 @@
 
 #include "colmap/estimators/two_view_geometry.h"
 
+#include "colmap/estimators/cost_functions.h"
 #include "colmap/estimators/essential_matrix.h"
 #include "colmap/estimators/fundamental_matrix.h"
 #include "colmap/estimators/generalized_relative_pose.h"
@@ -639,7 +640,8 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
     const std::vector<Camera>& virtual_cameras2,
     const std::vector<Rigid3d>& virtual_from_reals2,
     const FeatureMatches& matches,
-    const TwoViewGeometryOptions& options) {
+    const TwoViewGeometryOptions& options,
+    const bool refine) {
   TwoViewGeometry geometry;
 
   const size_t min_num_inliers = static_cast<size_t>(options.min_num_inliers);
@@ -684,7 +686,7 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
   // [Experimental]: Since the refractive two-view geometry can not estimate
   // scale well, it is not determined whether we should normalize the
   // estimated translation to unit length.
-  // geometry.cam2_from_cam1.translation.normalize();
+  geometry.cam2_from_cam1.translation.normalize();
 
   if (!report.success || report.support.num_inliers < min_num_inliers) {
     geometry.config = TwoViewGeometry::ConfigurationType::DEGENERATE;
@@ -696,6 +698,18 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
   // Generalized relative pose estimator outputs directly cam2_from_cam1.
   geometry.inlier_matches = ExtractInlierMatches(
       matches, report.support.num_inliers, report.inlier_mask);
+
+  if (refine) {
+    if (!RefineRefractiveTwoViewGeometry(points1,
+                                         virtual_from_reals1,
+                                         points2,
+                                         virtual_from_reals2,
+                                         geometry.inlier_matches,
+                                         &geometry.cam2_from_cam1)) {
+      geometry.inlier_matches.clear();
+      return geometry;
+    };
+  }
 
   if (options.compute_relative_pose) {
     // Extract tri_angle after estimating the two-view geometry.
@@ -780,6 +794,51 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
     }
   }
   return geometry;
+}
+
+bool RefineRefractiveTwoViewGeometry(
+    const std::vector<Eigen::Vector2d>& points1,
+    const std::vector<Rigid3d>& virtual_from_reals1,
+    const std::vector<Eigen::Vector2d>& points2,
+    const std::vector<Rigid3d>& virtual_from_reals2,
+    const FeatureMatches& inlier_matches,
+    Rigid3d* rig2_from_rig1) {
+  // CostFunction assumes unit quaternions.
+  rig2_from_rig1->rotation.normalize();
+
+  double* rig2_from_rig1_rotation = rig2_from_rig1->rotation.coeffs().data();
+  double* rig2_from_rig1_translation = rig2_from_rig1->translation.data();
+
+  const double kMaxL2Error = 1.0;
+  ceres::LossFunction* loss_function = new ceres::CauchyLoss(kMaxL2Error);
+
+  ceres::Problem problem;
+  ceres::Solver::Options solver_options;
+  solver_options.max_num_iterations = 100;
+  solver_options.linear_solver_type = ceres::DENSE_QR;
+  solver_options.minimizer_progress_to_stdout = true;
+
+  for (const auto& match : inlier_matches) {
+    const Eigen::Vector2d& x1 = points1[match.point2D_idx1];
+    const Eigen::Vector2d& x2 = points2[match.point2D_idx2];
+    ceres::CostFunction* cost_function =
+        GeneralizedSampsonErrorCostFunction::Create(
+            x1,
+            x2,
+            virtual_from_reals1[match.point2D_idx1],
+            virtual_from_reals2[match.point2D_idx2]);
+    problem.AddResidualBlock(cost_function,
+                             loss_function,
+                             rig2_from_rig1_rotation,
+                             rig2_from_rig1_translation);
+  }
+
+  SetQuaternionManifold(&problem, rig2_from_rig1_rotation);
+
+  ceres::Solver::Summary summary;
+  ceres::Solve(solver_options, &problem, &summary);
+
+  return summary.IsSolutionUsable();
 }
 
 }  // namespace colmap
