@@ -681,6 +681,11 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
   const auto report = ransac.Estimate(matched_points1, matched_points2);
   geometry.cam2_from_cam1 = report.model;
 
+  // [Experimental]: Since the refractive two-view geometry can not estimate
+  // scale well, it is not determined whether we should normalize the
+  // estimated translation to unit length.
+  // geometry.cam2_from_cam1.translation.normalize();
+
   if (!report.success || report.support.num_inliers < min_num_inliers) {
     geometry.config = TwoViewGeometry::ConfigurationType::DEGENERATE;
     return geometry;

@@ -1367,29 +1367,16 @@ bool IncrementalMapper::EstimateInitialTwoViewGeometry(
                                           virtual_from_reals2,
                                           matches,
                                           two_view_geometry_options);
-    // [Experimental]: Since the refractive two-view geometry can not estimate
-    // scale well, it is not determined whether we should normalize the
-    // estimated translation to unit length.
-    two_view_geometry.cam2_from_cam1.translation.normalize();
   }
 
-  if (options.enable_refraction) {
-    if (options.init_min_num_inliers &&
-        two_view_geometry.tri_angle > DegToRad(options.init_min_tri_angle)) {
-      prev_init_image_pair_id_ = image_pair_id;
-      prev_init_two_view_geometry_ = two_view_geometry;
-      return true;
-    }
-  } else {
-    if (static_cast<int>(two_view_geometry.inlier_matches.size()) >=
-            options.init_min_num_inliers &&
-        std::abs(two_view_geometry.cam2_from_cam1.translation.z()) <
-            options.init_max_forward_motion &&
-        two_view_geometry.tri_angle > DegToRad(options.init_min_tri_angle)) {
-      prev_init_image_pair_id_ = image_pair_id;
-      prev_init_two_view_geometry_ = two_view_geometry;
-      return true;
-    }
+  if (static_cast<int>(two_view_geometry.inlier_matches.size()) >=
+          options.init_min_num_inliers &&
+      std::abs(two_view_geometry.cam2_from_cam1.translation.normalized().z()) <
+          options.init_max_forward_motion &&
+      two_view_geometry.tri_angle > DegToRad(options.init_min_tri_angle)) {
+    prev_init_image_pair_id_ = image_pair_id;
+    prev_init_two_view_geometry_ = two_view_geometry;
+    return true;
   }
 
   return false;

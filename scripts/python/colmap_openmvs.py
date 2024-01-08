@@ -389,6 +389,12 @@ def parse_args():
         default=-1,
     )
     group.add_argument(
+        "--ba_refine_refrac_params",
+        help="whether to optimize refractive parameter during bundle adjustment",
+        action="store_true",
+        default=False,
+    )
+    group.add_argument(
         "--write_snapshot",
         help="for every [snapshot_images_freq] it will write out a snapshot of the current reconstruction, useful feature for debugging",
         action="store_true",
@@ -524,6 +530,8 @@ class COLMAPOpenMVSPipeline:
             args.ba_refine_prior_from_cam_after_num_images
         )
         self.fix_intrin_until: int = args.ba_fix_intrin_until_num_images
+        self.ba_refine_refrac_params = args.ba_refine_refrac_params
+
         self.write_snapshot: bool = args.write_snapshot
         self.snapshot_images_freq: int = args.snapshot_images_freq
 
@@ -819,6 +827,12 @@ class COLMAPOpenMVSPipeline:
 
         if self.enable_refraction:
             mapper_cmds += ["--Mapper.enable_refraction", "1"]
+            mapper_cmds += [
+                "--Mapper.ba_refine_refrac_params",
+                f"{self.ba_refine_refrac_params}",
+            ]
+            # If refraction is eanbled, the triangulation angle between 2 views is potentially reduced, here we half the min_tri_angle
+            mapper_cmds += ["--Mapper.init_min_tri_angle", "10"]
 
         if self.write_snapshot and not self.hybrid_mapper:
             mapper_cmds += [
