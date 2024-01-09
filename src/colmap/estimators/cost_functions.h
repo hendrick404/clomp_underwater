@@ -784,8 +784,9 @@ class GeneralizedSampsonErrorCostFunction {
         cam2_from_rig2_.rotation.cast<T>() * rig2_from_cam1_rotation;
 
     const Eigen::Matrix<T, 3, 1> cam2_from_cam1_translation =
-        cam2_from_rig2_.translation.cast<T>() +
-        cam2_from_rig2_.rotation.cast<T>() * rig2_from_cam1_translation;
+        (cam2_from_rig2_.translation.cast<T>() +
+         cam2_from_rig2_.rotation.cast<T>() * rig2_from_cam1_translation)
+            .normalized();
 
     const Eigen::Matrix<T, 3, 3> R = cam2_from_cam1_rotation.toRotationMatrix();
 
@@ -809,6 +810,9 @@ class GeneralizedSampsonErrorCostFunction {
     residuals[0] = x2tEx1 * x2tEx1 /
                    (Ex1(0) * Ex1(0) + Ex1(1) * Ex1(1) + Etx2(0) * Etx2(0) +
                     Etx2(1) * Etx2(1));
+    // std::cout << "In the cost function: " << x1_ << ", " << y1_ << " -- " << x2_
+    //           << ", " << y2_ << std::endl;
+    // std::cout << "cost: " << residuals[0] << std::endl;
     return true;
   }
 

@@ -686,7 +686,7 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
   // [Experimental]: Since the refractive two-view geometry can not estimate
   // scale well, it is not determined whether we should normalize the
   // estimated translation to unit length.
-  geometry.cam2_from_cam1.translation.normalize();
+  // geometry.cam2_from_cam1.translation.normalize();
 
   if (!report.success || report.support.num_inliers < min_num_inliers) {
     geometry.config = TwoViewGeometry::ConfigurationType::DEGENERATE;
@@ -699,18 +699,6 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
   geometry.inlier_matches = ExtractInlierMatches(
       matches, report.support.num_inliers, report.inlier_mask);
 
-  if (refine) {
-    if (!RefineRefractiveTwoViewGeometry(points1,
-                                         virtual_from_reals1,
-                                         points2,
-                                         virtual_from_reals2,
-                                         geometry.inlier_matches,
-                                         &geometry.cam2_from_cam1)) {
-      geometry.inlier_matches.clear();
-      return geometry;
-    };
-  }
-
   if (options.compute_relative_pose) {
     // Extract tri_angle after estimating the two-view geometry.
     std::vector<double> tri_angles;
@@ -721,11 +709,17 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
     std::vector<Eigen::Matrix3x4d> inlier_virtual_proj_matrix1;
     std::vector<Eigen::Matrix3x4d> inlier_virtual_proj_matrix2;
 
+    std::vector<Rigid3d> inlier_virtual_from_reals1;
+    std::vector<Rigid3d> inlier_virtual_from_reals2;
+
     inlier_points1_normalized.reserve(geometry.inlier_matches.size());
     inlier_points2_normalized.reserve(geometry.inlier_matches.size());
 
     inlier_virtual_proj_matrix1.reserve(geometry.inlier_matches.size());
     inlier_virtual_proj_matrix2.reserve(geometry.inlier_matches.size());
+
+    inlier_virtual_from_reals1.reserve(geometry.inlier_matches.size());
+    inlier_virtual_from_reals2.reserve(geometry.inlier_matches.size());
 
     const Rigid3d real1_from_world;
     const Rigid3d real2_from_world = geometry.cam2_from_cam1;
@@ -746,6 +740,22 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
 
       inlier_virtual_proj_matrix1.push_back(virtual1_from_world.ToMatrix());
       inlier_virtual_proj_matrix2.push_back(virtual2_from_world.ToMatrix());
+      inlier_virtual_from_reals1.push_back(
+          virtual_from_reals1[match.point2D_idx1]);
+      inlier_virtual_from_reals2.push_back(
+          virtual_from_reals2[match.point2D_idx2]);
+    }
+
+    if (refine) {
+      if (!RefineRefractiveTwoViewGeometry(inlier_points1_normalized,
+                                           inlier_virtual_from_reals1,
+                                           inlier_points2_normalized,
+                                           inlier_virtual_from_reals2,
+                                           &geometry.cam2_from_cam1)) {
+        // Optimization failed, directly return and clean up the inlier matches.
+        geometry.inlier_matches.clear();
+        return geometry;
+      };
     }
 
     const double kMinDepth = std::numeric_limits<double>::epsilon();
@@ -801,7 +811,6 @@ bool RefineRefractiveTwoViewGeometry(
     const std::vector<Rigid3d>& virtual_from_reals1,
     const std::vector<Eigen::Vector2d>& points2,
     const std::vector<Rigid3d>& virtual_from_reals2,
-    const FeatureMatches& inlier_matches,
     Rigid3d* rig2_from_rig1) {
   // CostFunction assumes unit quaternions.
   rig2_from_rig1->rotation.normalize();
@@ -818,15 +827,18 @@ bool RefineRefractiveTwoViewGeometry(
   solver_options.linear_solver_type = ceres::DENSE_QR;
   solver_options.minimizer_progress_to_stdout = true;
 
-  for (const auto& match : inlier_matches) {
-    const Eigen::Vector2d& x1 = points1[match.point2D_idx1];
-    const Eigen::Vector2d& x2 = points2[match.point2D_idx2];
+  // The overhead of creating threads is too large.
+  solver_options.num_threads = 1;
+#if CERES_VERSION_MAJOR < 2
+  solver_options.num_linear_solver_threads = 1;
+#endif  // CERES_VERSION_MAJOR
+
+  for (size_t i = 0; i < points1.size(); ++i) {
     ceres::CostFunction* cost_function =
-        GeneralizedSampsonErrorCostFunction::Create(
-            x1,
-            x2,
-            virtual_from_reals1[match.point2D_idx1],
-            virtual_from_reals2[match.point2D_idx2]);
+        GeneralizedSampsonErrorCostFunction::Create(points1[i],
+                                                    points2[i],
+                                                    virtual_from_reals1[i],
+                                                    virtual_from_reals2[i]);
     problem.AddResidualBlock(cost_function,
                              loss_function,
                              rig2_from_rig1_rotation,

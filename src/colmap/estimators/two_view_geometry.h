@@ -180,11 +180,10 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
     bool refine = false);
 
 bool RefineRefractiveTwoViewGeometry(
-    const std::vector<Eigen::Vector2d>& points1,
-    const std::vector<Rigid3d>& virtual_from_reals1,
-    const std::vector<Eigen::Vector2d>& points2,
-    const std::vector<Rigid3d>& virtual_from_reals2,
-    const FeatureMatches& inlier_matches,
+    const std::vector<Eigen::Vector2d>& inlier_points1_normalized,
+    const std::vector<Rigid3d>& inlier_virtual_from_reals1,
+    const std::vector<Eigen::Vector2d>& inlier_points2_normalized,
+    const std::vector<Rigid3d>& inlier_virtual_from_reals2,
     Rigid3d* rig2_from_rig1);
 
 }  // namespace colmap
