@@ -673,8 +673,7 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
 
   RANSACOptions ransac_options_copy = options.ransac_options;
   // Give it more iterations for RANSAC.
-  ransac_options_copy.max_num_trials *= 10;
-
+  // ransac_options_copy.max_num_trials *= 10;
   ransac_options_copy.max_error =
       (virtual_cameras1[0].CamFromImgThreshold(ransac_options_copy.max_error) +
        virtual_cameras2[0].CamFromImgThreshold(ransac_options_copy.max_error)) /
@@ -686,7 +685,7 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
   // [Experimental]: Since the refractive two-view geometry can not estimate
   // scale well, it is not determined whether we should normalize the
   // estimated translation to unit length.
-  // geometry.cam2_from_cam1.translation.normalize();
+  geometry.cam2_from_cam1.translation.normalize();
 
   if (!report.success || report.support.num_inliers < min_num_inliers) {
     geometry.config = TwoViewGeometry::ConfigurationType::DEGENERATE;
@@ -825,7 +824,7 @@ bool RefineRefractiveTwoViewGeometry(
   ceres::Solver::Options solver_options;
   solver_options.max_num_iterations = 100;
   solver_options.linear_solver_type = ceres::DENSE_QR;
-  solver_options.minimizer_progress_to_stdout = true;
+  solver_options.minimizer_progress_to_stdout = false;
 
   // The overhead of creating threads is too large.
   solver_options.num_threads = 1;
@@ -846,6 +845,7 @@ bool RefineRefractiveTwoViewGeometry(
   }
 
   SetQuaternionManifold(&problem, rig2_from_rig1_rotation);
+  SetSphereManifold<3>(&problem, rig2_from_rig1_translation);
 
   ceres::Solver::Summary summary;
   ceres::Solve(solver_options, &problem, &summary);

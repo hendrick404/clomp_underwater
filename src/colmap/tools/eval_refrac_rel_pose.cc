@@ -154,7 +154,7 @@ size_t EstimateRelativePose(Camera& camera,
     num_inliers = two_view_geometry.inlier_matches.size();
   } else {
     // Refractive case.
-    two_view_geometry_options.compute_relative_pose = false;
+    two_view_geometry_options.compute_relative_pose = true;
     two_view_geometry =
         EstimateRefractiveTwoViewGeometry(points_data.points2D1_refrac,
                                           points_data.virtual_cameras1,
@@ -163,7 +163,10 @@ size_t EstimateRelativePose(Camera& camera,
                                           points_data.virtual_cameras2,
                                           points_data.virtual_from_reals2,
                                           matches,
-                                          two_view_geometry_options);
+                                          two_view_geometry_options,
+                                          true);
+    cam2_from_cam1 = two_view_geometry.cam2_from_cam1;
+    num_inliers = two_view_geometry.inlier_matches.size();
   }
 
   cam2_from_cam1 = two_view_geometry.cam2_from_cam1;
@@ -172,38 +175,32 @@ size_t EstimateRelativePose(Camera& camera,
   return num_inliers;
 }
 
-void RelativePoseError(const colmap::Rigid3d& cam2_from_cam1_gt,
-                       const colmap::Rigid3d& cam2_from_cam1_est,
-                       double& rotation_error,
-                       double& angular_error,
-                       double& scale_error,
-                       bool is_refractive) {
-  colmap::Rigid3d cam2_from_cam1_gt_norm = cam2_from_cam1_gt;
-  cam2_from_cam1_gt_norm.translation.normalize();
-  colmap::Rigid3d cam2_from_cam1_est_norm = cam2_from_cam1_est;
-  cam2_from_cam1_est_norm.translation.normalize();
+void PoseError(const Rigid3d& cam2_from_cam1_gt,
+               const Rigid3d& cam2_from_cam1_est,
+               double& rotation_error,
+               double& position_error,
+               bool is_refractive) {
+  if (!is_refractive) {
+    colmap::Rigid3d cam2_from_cam1_gt_norm = cam2_from_cam1_gt;
+    cam2_from_cam1_gt_norm.translation.normalize();
 
-  colmap::Rigid3d diff =
-      cam2_from_cam1_gt_norm * colmap::Inverse(cam2_from_cam1_est_norm);
-  rotation_error = colmap::RadToDeg(Eigen::AngleAxisd(diff.rotation).angle());
-
-  double cos_theta = cam2_from_cam1_gt_norm.translation.dot(
-      cam2_from_cam1_est_norm.translation);
-  if (cos_theta < 0) {
-    cos_theta = -cos_theta;
-  }
-  angular_error = RadToDeg(acos(cos_theta));
-
-  if (is_refractive) {
-    const double baseline_est = (cam2_from_cam1_est.rotation.inverse() *
-                                 -cam2_from_cam1_est.translation)
-                                    .norm();
-    const double baseline_gt =
-        (cam2_from_cam1_gt.rotation.inverse() * -cam2_from_cam1_gt.translation)
-            .norm();
-    scale_error = (std::abs(baseline_gt - baseline_est) / baseline_gt) * 100.0;
+    colmap::Rigid3d diff =
+        cam2_from_cam1_gt_norm * colmap::Inverse(cam2_from_cam1_est);
+    rotation_error = colmap::RadToDeg(Eigen::AngleAxisd(diff.rotation).angle());
+    // Position error in [mm]
+    position_error = (Inverse(cam2_from_cam1_gt_norm).translation -
+                      Inverse(cam2_from_cam1_est).translation)
+                         .norm() *
+                     1000.0;
   } else {
-    scale_error = 0.0;
+    colmap::Rigid3d diff =
+        cam2_from_cam1_gt * colmap::Inverse(cam2_from_cam1_est);
+    rotation_error = colmap::RadToDeg(Eigen::AngleAxisd(diff.rotation).angle());
+    // Position error in [mm]
+    position_error = (Inverse(cam2_from_cam1_gt).translation -
+                      Inverse(cam2_from_cam1_est).translation)
+                         .norm() *
+                     1000.0;
   }
 }
 
@@ -216,9 +213,9 @@ void Evaluate(colmap::Camera& camera,
   // std::vector<double> noise_levels = {0.0};
 
   std::ofstream file(output_path, std::ios::out);
-  file << "# noise_level angular_error_mean angular_error_std rot_error_mean "
-          "rot_error_std angular_error_refrac_mean angular_error_refrac_std "
-          "rot_error_refrac_mean rot_error_refrac_std time time_refrac"
+  file << "# noise_level rot_error_mean rot_error_std pos_error_mean "
+          "pos_error_std rot_error_refrac_mean rot_error_refrac_std "
+          "pos_error_refrac_mean pos_error_refrac_std time time_refrac"
        << std::endl;
 
   for (const double& noise : noise_levels) {
@@ -231,15 +228,15 @@ void Evaluate(colmap::Camera& camera,
     std::cout << "Generating random data ..." << std::endl;
     for (size_t i = 0; i < num_exps; i++) {
       // Create a random GT pose.
-      double ry = colmap::RandomUniformReal(colmap::DegToRad(-15.0),
-                                            colmap::DegToRad(15.0));
-      double rx = colmap::RandomUniformReal(colmap::DegToRad(-15.0),
-                                            colmap::DegToRad(15.0));
-      double rz = colmap::RandomUniformReal(colmap::DegToRad(-15.0),
-                                            colmap::DegToRad(15.0));
-      double tx = colmap::RandomUniformReal(-1.0, 1.0);
-      double ty = colmap::RandomUniformReal(-0.2, 0.2);
-      double tz = colmap::RandomUniformReal(-0.2, 0.2);
+      double ry = colmap::RandomUniformReal(colmap::DegToRad(-30.0),
+                                            colmap::DegToRad(30.0));
+      double rx = colmap::RandomUniformReal(colmap::DegToRad(-30.0),
+                                            colmap::DegToRad(30.0));
+      double rz = colmap::RandomUniformReal(colmap::DegToRad(-30.0),
+                                            colmap::DegToRad(30.0));
+      double tx = colmap::RandomUniformReal(-2.0, 2.0);
+      double ty = colmap::RandomUniformReal(-2.0, 2.0);
+      double tz = colmap::RandomUniformReal(-2.0, 2.0);
       colmap::Rigid3d cam2_from_cam1;
       cam2_from_cam1.rotation =
           Eigen::Quaterniond(EulerAnglesToRotationMatrix(rx, ry, rz))
@@ -252,15 +249,11 @@ void Evaluate(colmap::Camera& camera,
       datasets.push_back(points_data);
     }
 
-    std::cout << "Evaluating ..." << std::endl;
-
     // Evaluate random dataset.
     std::vector<double> rotation_errors;
-    std::vector<double> angular_errors;
+    std::vector<double> position_errors;
     std::vector<double> rotation_errors_refrac;
-    std::vector<double> angular_errors_refrac;
-
-    std::vector<double> scale_errors;
+    std::vector<double> position_errors_refrac;
 
     // Inlier ratio
     std::vector<double> inlier_ratios;
@@ -269,9 +262,11 @@ void Evaluate(colmap::Camera& camera,
     double time = 0.0;
     double time_refrac = 0.0;
 
+    std::cout << "Evaluating non-refractive ..." << std::endl;
+
     Timer timer;
 
-    // Perform in-air pose estimation
+    // Perform non-refractive pose estimation
     timer.Start();
     for (size_t i = 0; i < num_exps; i++) {
       const PointsData& points_data = datasets[i];
@@ -279,20 +274,21 @@ void Evaluate(colmap::Camera& camera,
       size_t num_inliers =
           EstimateRelativePose(camera, points_data, cam2_from_cam1_est, false);
 
-      double rotation_error, angular_error, scale_error;
-      RelativePoseError(points_data.cam2_from_cam1_gt,
-                        cam2_from_cam1_est,
-                        rotation_error,
-                        angular_error,
-                        scale_error,
-                        false);
+      double rotation_error, position_error;
+      PoseError(points_data.cam2_from_cam1_gt,
+                cam2_from_cam1_est,
+                rotation_error,
+                position_error,
+                false);
       rotation_errors.push_back(rotation_error);
-      angular_errors.push_back(angular_error);
+      position_errors.push_back(position_error);
       inlier_ratios.push_back(static_cast<double>(num_inliers) /
                               static_cast<double>(num_points));
     }
     timer.Pause();
     time = timer.ElapsedSeconds();
+
+    std::cout << "Evaluating refractive ..." << std::endl;
 
     timer.Restart();
     // Perform refractive pose estimation
@@ -302,54 +298,49 @@ void Evaluate(colmap::Camera& camera,
       size_t num_inliers = EstimateRelativePose(
           camera, points_data, cam2_from_cam1_est_refrac, true);
 
-      double rotation_error_refrac, angular_error_refrac, scale_error;
-      RelativePoseError(points_data.cam2_from_cam1_gt,
-                        cam2_from_cam1_est_refrac,
-                        rotation_error_refrac,
-                        angular_error_refrac,
-                        scale_error,
-                        true);
+      double rotation_error_refrac, position_error_refrac;
+      cam2_from_cam1_est_refrac.translation.normalize();
+      PoseError(points_data.cam2_from_cam1_gt,
+                cam2_from_cam1_est_refrac,
+                rotation_error_refrac,
+                position_error_refrac,
+                false);
       rotation_errors_refrac.push_back(rotation_error_refrac);
-      angular_errors_refrac.push_back(angular_error_refrac);
-      scale_errors.push_back(scale_error);
+      position_errors_refrac.push_back(position_error_refrac);
       inlier_ratios_refrac.push_back(static_cast<double>(num_inliers) /
                                      static_cast<double>(num_points));
     }
     timer.Pause();
     time_refrac = timer.ElapsedSeconds();
 
-    const double ang_error_mean = Mean(angular_errors);
-    const double ang_error_std = StdDev(angular_errors);
     const double rot_error_mean = Mean(rotation_errors);
     const double rot_error_std = StdDev(rotation_errors);
+    const double pos_error_mean = Mean(position_errors);
+    const double pos_error_std = StdDev(position_errors);
 
-    const double ang_error_refrac_mean = Mean(angular_errors_refrac);
-    const double ang_error_refrac_std = StdDev(angular_errors_refrac);
     const double rot_error_refrac_mean = Mean(rotation_errors_refrac);
     const double rot_error_refrac_std = StdDev(rotation_errors_refrac);
-
-    const double scale_error_mean = Mean(scale_errors);
-    const double scale_error_std = StdDev(scale_errors);
+    const double pos_error_refrac_mean = Mean(position_errors_refrac);
+    const double pos_error_refrac_std = StdDev(position_errors_refrac);
 
     const double inlier_ratio_mean = colmap::Mean(inlier_ratios);
     const double inlier_ratio_refrac_mean = colmap::Mean(inlier_ratios_refrac);
 
-    file << noise << " " << ang_error_mean << " " << ang_error_std << " "
-         << rot_error_mean << " " << rot_error_std << " "
-         << ang_error_refrac_mean << " " << ang_error_refrac_std << " "
+    file << noise << " " << rot_error_mean << " " << rot_error_std << " "
+         << pos_error_mean << " " << pos_error_std << " "
          << rot_error_refrac_mean << " " << rot_error_refrac_std << " "
-         << scale_error_mean << " " << scale_error_std << " " << time << " "
-         << time_refrac << " " << inlier_ratio_mean << " "
+         << pos_error_refrac_mean << " " << pos_error_refrac_std << " " << time
+         << " " << time_refrac << " " << inlier_ratio_mean << " "
          << inlier_ratio_refrac_mean << std::endl;
-    std::cout << "Pose error in-air: Rotation: " << rot_error_mean << " +/- "
-              << rot_error_std << " -- Angular: " << ang_error_mean << " +/- "
-              << ang_error_std << " -- inlier ratio: " << inlier_ratio_mean
+    std::cout << "Pose error non-refrac: Rotation: " << rot_error_mean
+              << " +/- " << rot_error_std << " -- Position: " << pos_error_mean
+              << " +/- " << pos_error_std
+              << " -- inlier ratio: " << inlier_ratio_mean
               << " GT inlier ratio: " << inlier_ratio << std::endl;
-    std::cout << "Pose error refrac: Rotation: " << rot_error_refrac_mean
+    std::cout << "Pose error     refrac: Rotation: " << rot_error_refrac_mean
               << " +/- " << rot_error_refrac_std
-              << " -- Angular: " << ang_error_refrac_mean << " +/- "
-              << ang_error_refrac_std << " -- Scale: " << scale_error_mean
-              << " +/- " << scale_error_std
+              << " -- Position: " << pos_error_refrac_mean << " +/- "
+              << pos_error_refrac_std
               << " -- inlier ratio: " << inlier_ratio_refrac_mean
               << " GT inlier ratio: " << inlier_ratio << std::endl;
   }
@@ -360,30 +351,27 @@ void Evaluate(colmap::Camera& camera,
 int main(int argc, char* argv[]) {
   SetPRNGSeed(time(NULL));
 
-  std::cout << "Setup some realistic camera model" << std::endl;
-
   // Camera parameters coming from Anton 131 map.
-  Camera camera;
-  camera.SetWidth(4104);
-  camera.SetHeight(3006);
-  camera.SetModelIdFromName("METASHAPE_FISHEYE");
-  std::vector<double> params = {1000.7964068878537,
-                                1000.6679248258547,
-                                2097.4832274550317,
-                                1641.1207545881762,
-                                0,
-                                0,
-                                0,
-                                0,
-                                0,
-                                0};
   // Camera camera;
-  // camera.SetWidth(2048);
-  // camera.SetHeight(1536);
-  // camera.SetModelIdFromName("PINHOLE");
-  // std::vector<double> params = {
-  //     1300.900000, 1300.900000, 1024.000000, 768.000000};
-
+  // camera.SetWidth(4104);
+  // camera.SetHeight(3006);
+  // camera.SetModelIdFromName("METASHAPE_FISHEYE");
+  // std::vector<double> params = {1000.7964068878537,
+  //                               1000.6679248258547,
+  //                               2097.4832274550317,
+  //                               1641.1207545881762,
+  //                               0,
+  //                               0,
+  //                               0,
+  //                               0,
+  //                               0,
+  //                               0};
+  Camera camera;
+  camera.SetWidth(1113);
+  camera.SetHeight(835);
+  camera.SetModelIdFromName("PINHOLE");
+  std::vector<double> params = {
+      340.51429943677715, 340.51429943677715, 556.5, 417.5};
   camera.SetParams(params);
 
   // Flatport setup.
@@ -394,24 +382,51 @@ int main(int argc, char* argv[]) {
   int_normal[2] = RandomUniformReal(0.7, 1.3);
 
   int_normal.normalize();
+  // int_normal = Eigen::Vector3d::UnitZ();
 
-  std::vector<double> flatport_params = {
-      int_normal[0], int_normal[1], int_normal[2], 2.0, 1.0, 1.0, 2.5, 1.8};
+  std::vector<double> flatport_params = {int_normal[0],
+                                         int_normal[1],
+                                         int_normal[2],
+                                         0.05,
+                                         0.02,
+                                         1.0,
+                                         1.52,
+                                         1.334};
   camera.SetRefracParams(flatport_params);
 
+  // camera.SetRefracModelIdFromName("DOMEPORT");
+  // Eigen::Vector3d decentering;
+  // // decentering[0] = RandomUniformReal(-0.001, 0.001);
+  // // decentering[1] = RandomUniformReal(-0.001, 0.001);
+  // // decentering[2] = RandomUniformReal(-0.002, 0.002);
+
+  // decentering[0] = 0;
+  // decentering[1] = 0;
+  // decentering[2] = 0;
+
+  // std::vector<double> domeport_params = {decentering[0],
+  //                                        decentering[1],
+  //                                        decentering[2],
+  //                                        0.05,
+  //                                        0.007,
+  //                                        1.0,
+  //                                        1.52,
+  //                                        1.334};
+  // camera.SetRefracParams(domeport_params);
+
   // Generate simulated point data.
-  const size_t num_points = 100;
+  const size_t num_points = 2000;
   const double inlier_ratio = 1.0;
 
   std::string output_dir =
-      "/home/mshe/workspace/omv_src/colmap-project/refrac_sfm_eval/data/"
+      "/home/mshe/workspace/omv_src/colmap-project/refrac_sfm_eval/plots/"
       "rel_pose/";
   std::stringstream ss;
-  ss << output_dir << "/eval_refrac_rel_pose_num_points_" << num_points
+  ss << output_dir << "/rel_pose_flat_non_ortho_far_num_points_" << num_points
      << "_inlier_ratio_" << inlier_ratio << ".txt";
   std::string output_path = ss.str();
 
-  Evaluate(camera, num_points, 20, inlier_ratio, output_path);
+  Evaluate(camera, num_points, 200, inlier_ratio, output_path);
 
   return true;
 }
