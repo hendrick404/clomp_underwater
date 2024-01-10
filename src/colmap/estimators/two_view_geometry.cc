@@ -685,7 +685,7 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
   // [Experimental]: Since the refractive two-view geometry can not estimate
   // scale well, it is not determined whether we should normalize the
   // estimated translation to unit length.
-  geometry.cam2_from_cam1.translation.normalize();
+  // geometry.cam2_from_cam1.translation.normalize();
 
   if (!report.success || report.support.num_inliers < min_num_inliers) {
     geometry.config = TwoViewGeometry::ConfigurationType::DEGENERATE;
@@ -845,7 +845,6 @@ bool RefineRefractiveTwoViewGeometry(
   }
 
   SetQuaternionManifold(&problem, rig2_from_rig1_rotation);
-  SetSphereManifold<3>(&problem, rig2_from_rig1_translation);
 
   ceres::Solver::Summary summary;
   ceres::Solve(solver_options, &problem, &summary);
