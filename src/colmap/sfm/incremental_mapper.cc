@@ -305,6 +305,7 @@ bool IncrementalMapper::RegisterInitialImagePair(const Options& options,
     // Set the pose of image2 using the estimated two-view geometry scaled by
     // the baseline measured from the projection center priors.
     Rigid3d cam2_from_cam1_scaled = prev_init_two_view_geometry_.cam2_from_cam1;
+    cam2_from_cam1_scaled.translation.normalize();
     cam2_from_cam1_scaled.translation *= scale;
     image2.CamFromWorld() = cam2_from_cam1_scaled * image1.CamFromWorld();
 
@@ -729,9 +730,12 @@ IncrementalMapper::AdjustLocalBundle(
       const image_t image_id1 = local_bundle[local_bundle.size() - 1];
       const image_t image_id2 = local_bundle[local_bundle.size() - 2];
       ba_config.SetConstantCamPose(image_id1);
-      if (!options.fix_existing_images ||
-          !existing_image_ids_.count(image_id2)) {
-        ba_config.SetConstantCamPositions(image_id2, {0});
+      if (!options.enable_refraction ||
+          (options.enable_refraction && local_bundle.size() < 4)) {
+        if (!options.fix_existing_images ||
+            !existing_image_ids_.count(image_id2)) {
+          ba_config.SetConstantCamPositions(image_id2, {0});
+        }
       }
     }
 
@@ -822,9 +826,12 @@ bool IncrementalMapper::AdjustGlobalBundle(
   // Fix 7-DOFs of the bundle adjustment problem.
   if (!options.use_pose_prior) {
     ba_config.SetConstantCamPose(reg_image_ids[0]);
-    if (!options.fix_existing_images ||
-        !existing_image_ids_.count(reg_image_ids[1])) {
-      ba_config.SetConstantCamPositions(reg_image_ids[1], {0});
+    if (!options.enable_refraction ||
+        (options.enable_refraction && reg_image_ids.size() < 4)) {
+      if (!options.fix_existing_images ||
+          !existing_image_ids_.count(reg_image_ids[1])) {
+        ba_config.SetConstantCamPositions(reg_image_ids[1], {0});
+      }
     }
   }
 
@@ -836,8 +843,8 @@ bool IncrementalMapper::AdjustGlobalBundle(
 
   // Normalize scene for numerical stability and
   // to avoid large scale changes in viewer.
-  if (!options.use_pose_prior && !options.enable_refraction) {
-    reconstruction_->Normalize();
+  if (!options.use_pose_prior) {
+    reconstruction_->Normalize(10.0, 0.1, 0.9, true, options.enable_refraction);
   }
   if (ba_options.refine_prior_from_cam) {
     std::cout << "Refined prior_from_cam transform: \n"
@@ -1369,6 +1376,11 @@ bool IncrementalMapper::EstimateInitialTwoViewGeometry(
                                           two_view_geometry_options,
                                           true);
   }
+
+  // [Experimental]: Since the refractive two-view geometry can not estimate
+  // scale well, it is not determined whether we should normalize the
+  // estimated translation to unit length.
+  two_view_geometry.cam2_from_cam1.translation.normalize();
 
   if (static_cast<int>(two_view_geometry.inlier_matches.size()) >=
           options.init_min_num_inliers &&

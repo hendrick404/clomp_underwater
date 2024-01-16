@@ -212,6 +212,9 @@ void RelativePoseError(const colmap::Rigid3d& cam2_from_cam1_gt,
   if (cos_theta < 0) {
     cos_theta = -cos_theta;
   }
+  if (cos_theta > 1) {
+    cos_theta = 1.0;
+  }
   angular_error = RadToDeg(acos(cos_theta));
 
   if (is_refractive) {
@@ -253,9 +256,11 @@ void Evaluate(colmap::Camera& camera,
     std::cout << "Generating random data ..." << std::endl;
     for (size_t i = 0; i < num_exps; i++) {
       // Create a random GT pose.
-      const double tx = colmap::RandomUniformReal(0.0, 5.0);
+      const double tx = colmap::RandomUniformReal(-5.0, 5.0);
+      const double ty = colmap::RandomUniformReal(-2.5, 2.5);
+      const double tz = colmap::RandomUniformReal(-2.5, 2.5);
       const double distance = colmap::RandomUniformReal(0.5, 2.5);
-      Eigen::Vector3d proj_center(tx, 0.0, 0.0);
+      Eigen::Vector3d proj_center(tx, ty, tz);
 
       colmap::Rigid3d cam2_from_cam1;
 
@@ -409,9 +414,9 @@ int main(int argc, char* argv[]) {
   // Flatport setup.
   camera.SetRefracModelIdFromName("FLATPORT");
   Eigen::Vector3d int_normal;
-  int_normal[0] = RandomUniformReal(-0.3, 0.3);
-  int_normal[1] = RandomUniformReal(-0.3, 0.3);
-  int_normal[2] = RandomUniformReal(0.7, 1.3);
+  int_normal[0] = RandomUniformReal(-0.2, 0.2);
+  int_normal[1] = RandomUniformReal(-0.2, 0.2);
+  int_normal[2] = RandomUniformReal(0.8, 1.2);
 
   int_normal.normalize();
   // int_normal = Eigen::Vector3d::UnitZ();
@@ -419,7 +424,7 @@ int main(int argc, char* argv[]) {
   std::vector<double> flatport_params = {int_normal[0],
                                          int_normal[1],
                                          int_normal[2],
-                                         0.05,
+                                         0.01,
                                          0.02,
                                          1.0,
                                          1.52,
@@ -447,18 +452,18 @@ int main(int argc, char* argv[]) {
   // camera.SetRefracParams(domeport_params);
 
   // Generate simulated point data.
-  const size_t num_points = 2000;
-  const double inlier_ratio = 1.0;
+  const size_t num_points = 200;
+  const double inlier_ratio = 0.7;
 
   std::string output_dir =
       "/home/mshe/workspace/omv_src/colmap-project/refrac_sfm_eval/plots/"
       "rel_pose/";
   std::stringstream ss;
-  ss << output_dir << "/rel_pose_flat_non_ortho_far_num_points_" << num_points
+  ss << output_dir << "/rel_pose_flat_non_ortho_close_num_points_" << num_points
      << "_inlier_ratio_" << inlier_ratio << ".txt";
   std::string output_path = ss.str();
 
-  Evaluate(camera, num_points, 200, inlier_ratio, output_path);
+  Evaluate(camera, num_points, 1000, inlier_ratio, output_path);
 
   return true;
 }

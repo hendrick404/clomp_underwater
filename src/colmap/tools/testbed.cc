@@ -3,6 +3,7 @@
 #include "colmap/math/random.h"
 #include "colmap/scene/database_cache.h"
 #include "colmap/scene/reconstruction.h"
+#include "colmap/geometry/pose.h"
 #include "colmap/sensor/models_refrac.h"
 #include "colmap/util/logging.h"
 
@@ -215,7 +216,7 @@ int main(int argc, char* argv[]) {
   if (false) {
     std::cout << std::numeric_limits<double>::epsilon() << std::endl;
   }
-  if (true) {
+  if (false) {
     // Check projection at the image boundary.
     // Setup parameters
     const size_t width = 1000;
@@ -487,10 +488,13 @@ int main(int argc, char* argv[]) {
     std::cout << "ray2: " << ray2.dir.transpose() << std::endl;
   }
 
-  if(false){
-    Eigen::Quaterniond rot(1.2, 0.1, 0.2, 0.3);
+  if(true){
+    double ry = RandomUniformReal(-5.0, 5.0);
+    Eigen::Matrix3d rot = EulerAnglesToRotationMatrix(0.0, DegToRad(ry), 0.0);
 
-    std::cout << rot.coeffs() << std::endl;
+    Eigen::Vector3d int_normal = rot * Eigen::Vector3d::UnitZ();
+
+    std::cout << int_normal.transpose() << std::endl;
   }
 
   return true;

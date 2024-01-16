@@ -330,7 +330,8 @@ void Reconstruction::DeRegisterImage(const image_t image_id) {
 void Reconstruction::Normalize(const double extent,
                                const double p0,
                                const double p1,
-                               const bool use_images) {
+                               const bool use_images,
+                               const bool is_refractive) {
   CHECK_GT(extent, 0);
 
   if ((use_images && reg_image_ids_.size() < 2) ||
@@ -344,7 +345,7 @@ void Reconstruction::Normalize(const double extent,
   // translation is applied before scaling.
   const double old_extent = (std::get<1>(bound) - std::get<0>(bound)).norm();
   double scale;
-  if (old_extent < std::numeric_limits<double>::epsilon()) {
+  if (old_extent < std::numeric_limits<double>::epsilon() || is_refractive) {
     scale = 1;
   } else {
     scale = extent / old_extent;

@@ -175,7 +175,8 @@ class Reconstruction {
   void Normalize(double extent = 10.0,
                  double p0 = 0.1,
                  double p1 = 0.9,
-                 bool use_images = true);
+                 bool use_images = true,
+                 bool is_refractive = false);
 
   // Compute the centroid of the 3D points
   Eigen::Vector3d ComputeCentroid(double p0 = 0.1, double p1 = 0.9) const;

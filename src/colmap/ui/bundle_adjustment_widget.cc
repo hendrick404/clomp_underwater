@@ -108,11 +108,10 @@ void BundleAdjustmentWidget::Run() {
   thread->AddCallback(Thread::FINISHED_CALLBACK,
                       [this]() { render_action_->trigger(); });
 
-  if (!options_->mapper->use_pose_prior &&
-      !options_->mapper->enable_refraction) {
+  if (!options_->mapper->use_pose_prior) {
     // Normalize scene for numerical stability and
     // to avoid large scale changes in viewer.
-    reconstruction_->Normalize();
+    reconstruction_->Normalize(options_->mapper->enable_refraction);
   }
   thread_control_widget_->StartThread(
       "Bundle adjusting...", true, std::move(thread));
