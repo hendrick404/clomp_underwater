@@ -29,7 +29,6 @@
 
 #include "colmap/scene/camera.h"
 
-#include "colmap/geometry/rigid3.h"
 #include "colmap/sensor/models.h"
 #include "colmap/sensor/models_refrac.h"
 #include "colmap/util/logging.h"

@@ -988,12 +988,28 @@ bool HybridMapper::TriangulateTrack(
     const Image& image = reconstruction_->Image(track_el.image_id);
     const Point2D& point2D = image.Point2D(track_el.point2D_idx);
     const Camera& camera = reconstruction_->Camera(image.CameraId());
-
-    point_data[i].point = point2D.xy;
-    point_data[i].point_normalized = camera.CamFromImg(point_data[i].point);
-    pose_data[i].proj_matrix = image.CamFromWorld().ToMatrix();
-    pose_data[i].proj_center = image.ProjectionCenter();
-    pose_data[i].camera = &camera;
+    if (!tri_options.enable_refraction) {
+      // Non-refractive case.
+      point_data[i].point = point2D.xy;
+      point_data[i].point_normalized = camera.CamFromImg(point_data[i].point);
+      pose_data[i].proj_matrix = image.CamFromWorld().ToMatrix();
+      pose_data[i].proj_center = image.ProjectionCenter();
+      pose_data[i].camera = &camera;
+    } else {
+      // Refractive case.
+      Rigid3d virtual_from_real;
+      Camera virtual_camera;
+      camera.ComputeVirtual(point2D.xy, virtual_camera, virtual_from_real);
+      point_data[i].point = point2D.xy;
+      point_data[i].point_normalized =
+          virtual_camera.CamFromImg(point_data[i].point);
+      const Rigid3d virtual_from_world =
+          virtual_from_real * image.CamFromWorld();
+      pose_data[i].proj_matrix = virtual_from_world.ToMatrix();
+      pose_data[i].proj_center = virtual_from_world.rotation.inverse() *
+                                 -virtual_from_world.translation;
+      pose_data[i].camera = &virtual_camera;
+    }
   }
 
   // Setup estimation options.

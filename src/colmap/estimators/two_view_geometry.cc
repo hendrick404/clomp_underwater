@@ -791,8 +791,12 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
       }
     }
 
-    if (tri_angles.empty()) {
+    if (tri_angles.size() < min_num_inliers) {
       geometry.tri_angle = 0;
+      std::cout
+          << "WARNING: found sufficient amount of inliers, but `tri_angle` "
+             "cannot be computed as points may not have positive depths"
+          << std::endl;
     } else {
       geometry.tri_angle = Median(tri_angles);
     }

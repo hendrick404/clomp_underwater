@@ -793,6 +793,7 @@ int RunHybridMapper(int argc, char** argv) {
                            &mapper_options.pgo_abs_pose_multi);
   options.AddDefaultOption("pgo_smooth_multi",
                            &mapper_options.pgo_smooth_multi);
+  options.AddDefaultOption("show_pgo_result", &mapper_options.show_pgo_result);
   options.AddMapperOptions();
   options.Parse(argc, argv);
 

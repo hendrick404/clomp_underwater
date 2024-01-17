@@ -29,6 +29,7 @@
 
 
 if(IS_MSVC)
+    add_compile_options("/bigobj")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3")
     # Avoid pulling in too many header files through <windows.h>

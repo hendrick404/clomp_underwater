@@ -153,6 +153,12 @@ void HybridMapperController::Run() {
   PrintHeading1("Reconstruct inlier tracks");
   hybrid_mapper.ReconstructInlierTracks(options_.Mapper());
 
+  std::shared_ptr<Reconstruction> pgo_result;
+  if (options_.show_pgo_result) {
+    // Make a copy of the current stage of reconstruction and write out.
+    pgo_result = std::make_shared<Reconstruction>(*global_recon.get());
+  }
+
   PrintHeading1("Print view graph stats");
   hybrid_mapper.PrintViewGraphStats();
 
@@ -179,6 +185,10 @@ void HybridMapperController::Run() {
   hybrid_mapper.EndReconstruction();
 
   reconstruction_manager_->Get(reconstruction_manager_->Add()) = global_recon;
+
+  if (options_.show_pgo_result) {
+    reconstruction_manager_->Get(reconstruction_manager_->Add()) = pgo_result;
+  }
 
   // Debug, export the merged reconstruction.
   // auto& reconstruction_managers = hybrid_mapper.GetReconstructionManagers();

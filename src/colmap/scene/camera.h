@@ -29,14 +29,13 @@
 
 #pragma once
 
+#include "colmap/geometry/rigid3.h"
 #include "colmap/sensor/ray3d.h"
 #include "colmap/util/types.h"
 
 #include <vector>
 
 namespace colmap {
-
-class Rigid3d;
 
 // Camera class that holds the intrinsic parameters. Cameras may be shared
 // between multiple images, e.g., if the same "physical" camera took multiple
