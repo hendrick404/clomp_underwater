@@ -42,9 +42,9 @@ void GenerateRandom3D2DPoints(const Camera& camera,
   for (size_t i = 0; i < num_points; i++) {
     Eigen::Vector2d point2D_refrac;
     point2D_refrac.x() =
-        RandomUniformReal(0.5, static_cast<double>(camera.Width()) - 0.5);
+        RandomUniformReal(0.5, static_cast<double>(camera.width) - 0.5);
     point2D_refrac.y() =
-        RandomUniformReal(0.5, static_cast<double>(camera.Height()) - 0.5);
+        RandomUniformReal(0.5, static_cast<double>(camera.height) - 0.5);
 
     const double depth = RandomUniformReal(0.5, 10.0);
     const Eigen::Vector3d point3D_local =
@@ -363,12 +363,12 @@ int main(int argc, char* argv[]) {
   //                                 0.00012198372904429465,
   //                                 0.00051849746014895923};
   Camera camera;
-  camera.SetWidth(1920);
-  camera.SetHeight(1080);
-  camera.SetModelIdFromName("PINHOLE");
+  camera.width = 1920;
+  camera.height = 1080;
+  camera.model_id = CameraModelId::kPinhole;
   std::vector<double> params = {
       1297.3655404279762, 1297.3655404279762, 960.0, 540.0};
-  camera.SetParams(params);
+  camera.params = params;
 
   // Flatport setup.
   // camera.SetRefracModelIdFromName("FLATPORT");
@@ -390,7 +390,7 @@ int main(int argc, char* argv[]) {
   // camera.SetRefracParams(flatport_params);
 
   // Domeport setup.
-  camera.SetRefracModelIdFromName("DOMEPORT");
+  camera.refrac_model_id = CameraRefracModelId::kDomePort;
   Eigen::Vector3d decentering;
   decentering[0] = RandomUniformReal(-0.008, 0.008);
   decentering[1] = RandomUniformReal(-0.008, 0.008);
@@ -404,7 +404,7 @@ int main(int argc, char* argv[]) {
                                          1.0,
                                          1.52,
                                          1.334};
-  camera.SetRefracParams(domeport_params);
+  camera.refrac_params = domeport_params;
 
   // Generate simulated point data.
   const size_t num_points = 200;

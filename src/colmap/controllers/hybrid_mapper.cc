@@ -41,8 +41,8 @@ void IterativeGlobalRefinement(const IncrementalMapperOptions& options,
                                IncrementalMapper* mapper) {
   PrintHeading1("Retriangulation");
   CompleteAndMergeTracks(options, mapper);
-  std::cout << "  => Retriangulated observations: "
-            << mapper->Retriangulate(options.Triangulation()) << std::endl;
+  LOG(INFO) << "  => Retriangulated observations: "
+            << mapper->Retriangulate(options.Triangulation());
 
   for (int i = 0; i < options.ba_global_max_refinements; ++i) {
     const size_t num_observations =
@@ -55,8 +55,7 @@ void IterativeGlobalRefinement(const IncrementalMapperOptions& options,
         num_observations == 0
             ? 0
             : static_cast<double>(num_changed_observations) / num_observations;
-    std::cout << StringPrintf("  => Changed observations: %.6f", changed)
-              << std::endl;
+    LOG(INFO) << StringPrintf("  => Changed observations: %.6f", changed);
     if (changed < options.ba_global_max_refinement_change) {
       break;
     }
@@ -206,7 +205,6 @@ void HybridMapperController::Run() {
   //   }
   // }
 
-  std::cout << std::endl;
   GetTimer().PrintMinutes();
 }
 
@@ -224,15 +222,10 @@ bool HybridMapperController::LoadDatabase() {
                             min_num_matches,
                             options_.incremental_options.ignore_watermarks,
                             image_names);
-  std::cout << std::endl;
   timer.PrintMinutes();
 
-  std::cout << std::endl;
-
   if (database_cache_->NumImages() == 0) {
-    std::cout << "WARNING: No images with matches found in the database."
-              << std::endl
-              << std::endl;
+    LOG(WARNING) << "No images with matches found in the database.";
     return false;
   }
 

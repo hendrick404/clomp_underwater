@@ -71,9 +71,9 @@ void GenerateRandom2D2DPoints(const Camera& camera,
     }
     Eigen::Vector2d point2D1_refrac;
     point2D1_refrac.x() =
-        RandomUniformReal(0.5, static_cast<double>(camera.Width()) - 0.5);
+        RandomUniformReal(0.5, static_cast<double>(camera.width) - 0.5);
     point2D1_refrac.y() =
-        RandomUniformReal(0.5, static_cast<double>(camera.Height()) - 0.5);
+        RandomUniformReal(0.5, static_cast<double>(camera.height) - 0.5);
 
     Ray3D ray_refrac = camera.CamFromImgRefrac(point2D1_refrac);
 
@@ -89,8 +89,8 @@ void GenerateRandom2D2DPoints(const Camera& camera,
       continue;
     }
 
-    if (point2D2_refrac.x() < 0 || point2D2_refrac.x() > camera.Width() ||
-        point2D2_refrac.y() < 0 || point2D2_refrac.y() > camera.Height()) {
+    if (point2D2_refrac.x() < 0 || point2D2_refrac.x() > camera.width ||
+        point2D2_refrac.y() < 0 || point2D2_refrac.y() > camera.height) {
       continue;
     }
 
@@ -404,15 +404,15 @@ int main(int argc, char* argv[]) {
   //                               0,
   //                               0};
   Camera camera;
-  camera.SetWidth(1113);
-  camera.SetHeight(835);
-  camera.SetModelIdFromName("PINHOLE");
+  camera.width = 1113;
+  camera.height = 835;
+  camera.model_id = CameraModelId::kPinhole;
   std::vector<double> params = {
       340.51429943677715, 340.51429943677715, 556.5, 417.5};
-  camera.SetParams(params);
+  camera.params = params;
 
   // Flatport setup.
-  camera.SetRefracModelIdFromName("FLATPORT");
+  camera.refrac_model_id = CameraRefracModelId::kFlatPort;
   Eigen::Vector3d int_normal;
   int_normal[0] = RandomUniformReal(-0.2, 0.2);
   int_normal[1] = RandomUniformReal(-0.2, 0.2);
@@ -429,7 +429,7 @@ int main(int argc, char* argv[]) {
                                          1.0,
                                          1.52,
                                          1.334};
-  camera.SetRefracParams(flatport_params);
+  camera.refrac_params = flatport_params;
 
   // camera.SetRefracModelIdFromName("DOMEPORT");
   // Eigen::Vector3d decentering;

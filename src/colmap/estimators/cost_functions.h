@@ -31,6 +31,7 @@
 
 #include "colmap/geometry/rigid3.h"
 #include "colmap/sensor/ray3d.h"
+#include "colmap/util/eigen_alignment.h"
 
 #include <Eigen/Core>
 #include <ceres/ceres.h>
@@ -58,7 +59,7 @@ class ReprojErrorCostFunction {
                                         4,
                                         3,
                                         3,
-                                        CameraModel::kNumParams>(
+                                        CameraModel::num_params>(
             new ReprojErrorCostFunction(point2D)));
   }
 
@@ -105,7 +106,7 @@ class ReprojErrorConstantPoseCostFunction {
             ReprojErrorConstantPoseCostFunction<CameraModel>,
             2,
             3,
-            CameraModel::kNumParams>(
+            CameraModel::num_params>(
         new ReprojErrorConstantPoseCostFunction(cam_from_world, point2D)));
   }
 
@@ -153,7 +154,7 @@ class ReprojErrorConstantPoint3DCostFunction {
             2,
             4,
             3,
-            CameraModel::kNumParams>(
+            CameraModel::num_params>(
         new ReprojErrorConstantPoint3DCostFunction(point2D, point3D)));
   }
 
@@ -210,7 +211,7 @@ class RigReprojErrorCostFunction {
                                         4,
                                         3,
                                         3,
-                                        CameraModel::kNumParams>(
+                                        CameraModel::num_params>(
             new RigReprojErrorCostFunction(point2D)));
   }
 
@@ -582,8 +583,8 @@ class ReprojErrorRefracCostFunction {
             4,
             3,
             3,
-            CameraModel::kNumParams,
-            CameraRefracModel::kNumParams>(
+            CameraModel::num_params,
+            CameraRefracModel::num_params>(
         new ReprojErrorRefracCostFunction(point2D)));
   }
 
@@ -666,8 +667,8 @@ class ReprojErrorRefracConstantPoseCostFunction {
                                                       CameraModel>,
             2,
             3,
-            CameraModel::kNumParams,
-            CameraRefracModel::kNumParams>(
+            CameraModel::num_params,
+            CameraRefracModel::num_params>(
         new ReprojErrorRefracConstantPoseCostFunction(cam_from_world,
                                                       point2D)));
   }
@@ -810,7 +811,8 @@ class GeneralizedSampsonErrorCostFunction {
     residuals[0] = x2tEx1 * x2tEx1 /
                    (Ex1(0) * Ex1(0) + Ex1(1) * Ex1(1) + Etx2(0) * Etx2(0) +
                     Etx2(1) * Etx2(1));
-    // std::cout << "In the cost function: " << x1_ << ", " << y1_ << " -- " << x2_
+    // std::cout << "In the cost function: " << x1_ << ", " << y1_ << " -- " <<
+    // x2_
     //           << ", " << y2_ << std::endl;
     // std::cout << "cost: " << residuals[0] << std::endl;
     return true;
