@@ -171,8 +171,9 @@ TEST(Camera, TestVerifyRefracParams) {
   const std::vector<double> refrac_params{
       0.001, 0.001, 0.02, 0.05, 0.007, 1.0, 1.52, 1.33};
   camera.refrac_model_id = DomePort::refrac_model_id;
+  camera.refrac_params = refrac_params;
   EXPECT_TRUE(camera.VerifyRefracParams());
-  camera.RefracParams().resize(2);
+  camera.refrac_params.resize(2);
   EXPECT_FALSE(camera.VerifyRefracParams());
 }
 

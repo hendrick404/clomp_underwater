@@ -1,3 +1,4 @@
+#include "colmap/estimators/cost_functions.h"
 #include "colmap/estimators/generalized_pose.h"
 #include "colmap/estimators/two_view_geometry.h"
 #include "colmap/geometry/pose.h"
@@ -5,6 +6,7 @@
 #include "colmap/math/math.h"
 #include "colmap/math/random.h"
 #include "colmap/scene/camera.h"
+#include "colmap/scene/projection.h"
 
 #include <fstream>
 
@@ -137,6 +139,88 @@ void GenerateRandom2D2DPoints(const Camera& camera,
   camera.ComputeVirtuals(points_data.points2D2_refrac,
                          points_data.virtual_cameras2,
                          points_data.virtual_from_reals2);
+}
+
+Camera BestFitNonRefracCamera(CameraModelId tgt_model_id,
+                              const Camera& camera,
+                              double tgt_distance) {
+  Camera tgt_camera = Camera::CreateFromModelId(camera.camera_id,
+                                                tgt_model_id,
+                                                camera.MeanFocalLength(),
+                                                camera.width,
+                                                camera.height);
+
+  // Sample 2D-3D correspondences for optimization.
+  // Sample 2D-3D correspondences for optimization
+  const size_t kNumSamples = 1000;
+  std::vector<Eigen::Vector2d> points2D(kNumSamples);
+  std::vector<Eigen::Vector3d> points3D(kNumSamples);
+  const double width = static_cast<double>(tgt_camera.width);
+  const double height = static_cast<double>(tgt_camera.height);
+
+  for (size_t i = 0; i < kNumSamples; ++i) {
+    const double depth = RandomGaussian(tgt_distance, 1.0);
+    Eigen::Vector2d image_point(RandomUniformReal(0.5, width - 0.5),
+                                RandomUniformReal(0.5, height - 0.5));
+    Eigen::Vector3d world_point =
+        camera.CamFromImgRefracPoint(image_point, depth);
+    points2D[i] = image_point;
+    points3D[i] = world_point;
+  }
+
+  const Rigid3d identity_pose = Rigid3d();
+
+  ceres::Problem problem;
+  ceres::Solver::Summary summary;
+  ceres::Solver::Options solver_options;
+  double* camera_params = tgt_camera.params.data();
+
+  for (size_t i = 0; i < kNumSamples; i++) {
+    const Eigen::Vector2d& point2D = points2D[i];
+    Eigen::Vector3d& point3D = points3D[i];
+
+    ceres::CostFunction* cost_function = nullptr;
+    switch (tgt_camera.model_id) {
+#define CAMERA_MODEL_CASE(CameraModel)                                        \
+  case CameraModel::model_id:                                                 \
+    cost_function = ReprojErrorConstantPoseCostFunction<CameraModel>::Create( \
+        identity_pose, point2D);                                              \
+    break;
+
+      CAMERA_MODEL_SWITCH_CASES
+
+#undef CAMERA_MODEL_CASE
+    }
+
+    problem.AddResidualBlock(
+        cost_function, nullptr, point3D.data(), camera_params);
+
+    problem.SetParameterBlockConstant(point3D.data());
+  }
+
+  solver_options.minimizer_progress_to_stdout = false;
+  ceres::Solve(solver_options, &problem, &summary);
+
+  // if optimization failed, use the original parameters
+  if (!summary.IsSolutionUsable() ||
+      summary.termination_type == ceres::TerminationType::NO_CONVERGENCE) {
+    LOG(WARNING) << "Failed to compute the best fit persepctive model, taking "
+                    "the original intrinsic parameters";
+    tgt_camera.model_id = camera.model_id;
+    tgt_camera.params = camera.params;
+  } else {
+    // Check for residuals.
+    double reproj_error_sum = 0.0;
+    for (size_t i = 0; i < kNumSamples; i++) {
+      const double squared_reproj_error = CalculateSquaredReprojectionError(
+          points2D[i], points3D[i], identity_pose, tgt_camera, false);
+      reproj_error_sum += std::sqrt(squared_reproj_error);
+    }
+    reproj_error_sum = reproj_error_sum / static_cast<double>(kNumSamples);
+    LOG(INFO) << "Best model " << tgt_camera.ModelName()
+              << " computed, residual: " << reproj_error_sum << std::endl;
+  }
+  return tgt_camera;
 }
 
 size_t EstimateRelativePose(Camera& camera,
@@ -451,19 +535,22 @@ int main(int argc, char* argv[]) {
   //                                        1.334};
   // camera.SetRefracParams(domeport_params);
 
+  Camera best_fit = BestFitNonRefracCamera(CameraModelId::kOpenCV, camera, 5.0);
+
   // Generate simulated point data.
-  const size_t num_points = 200;
-  const double inlier_ratio = 0.7;
+  // const size_t num_points = 200;
+  // const double inlier_ratio = 0.7;
 
-  std::string output_dir =
-      "/home/mshe/workspace/omv_src/colmap-project/refrac_sfm_eval/plots/"
-      "rel_pose/";
-  std::stringstream ss;
-  ss << output_dir << "/rel_pose_flat_non_ortho_close_num_points_" << num_points
-     << "_inlier_ratio_" << inlier_ratio << ".txt";
-  std::string output_path = ss.str();
+  // std::string output_dir =
+  //     "/home/mshe/workspace/omv_src/colmap-project/refrac_sfm_eval/plots/"
+  //     "rel_pose/";
+  // std::stringstream ss;
+  // ss << output_dir << "/rel_pose_flat_non_ortho_close_num_points_" <<
+  // num_points
+  //    << "_inlier_ratio_" << inlier_ratio << ".txt";
+  // std::string output_path = ss.str();
 
-  Evaluate(camera, num_points, 1000, inlier_ratio, output_path);
+  // Evaluate(camera, num_points, 1000, inlier_ratio, output_path);
 
   return true;
 }
