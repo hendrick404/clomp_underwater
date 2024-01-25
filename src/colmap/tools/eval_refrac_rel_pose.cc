@@ -23,6 +23,7 @@ struct PointsData {
   std::vector<Camera> virtual_cameras2;
   std::vector<Rigid3d> virtual_from_reals1;
   std::vector<Rigid3d> virtual_from_reals2;
+  Camera best_fit_camera;
 
   colmap::Rigid3d cam2_from_cam1_gt;
 };
@@ -89,7 +90,7 @@ void GenerateRandom2D2DPoints(const Camera& camera,
 
     Ray3D ray_refrac = camera.CamFromImgRefrac(point2D1_refrac);
 
-    const double d = RandomUniformReal(0.5, 5.0);
+    const double d = RandomUniformReal(6.0, 8.0);
 
     // Now, do projection.
     Eigen::Vector3d point3D1 = ray_refrac.At(d);
@@ -149,158 +150,10 @@ void GenerateRandom2D2DPoints(const Camera& camera,
   camera.ComputeVirtuals(points_data.points2D2_refrac,
                          points_data.virtual_cameras2,
                          points_data.virtual_from_reals2);
-}
 
-Camera BestFitNonRefracCamera(CameraModelId tgt_model_id,
-                              const Camera& camera,
-                              double tgt_distance) {
-  Camera tgt_camera = Camera::CreateFromModelId(camera.camera_id,
-                                                tgt_model_id,
-                                                camera.MeanFocalLength(),
-                                                camera.width,
-                                                camera.height);
-  tgt_camera.SetPrincipalPointX(camera.PrincipalPointX());
-  tgt_camera.SetPrincipalPointY(camera.PrincipalPointY());
-
-  // Sample 2D-3D correspondences for optimization.
-  const size_t kNumSamples = 1000;
-  std::vector<Eigen::Vector2d> points2D(kNumSamples);
-  std::vector<Eigen::Vector3d> points3D(kNumSamples);
-  const double width = static_cast<double>(tgt_camera.width);
-  const double height = static_cast<double>(tgt_camera.height);
-
-  for (size_t i = 0; i < kNumSamples; ++i) {
-    const double depth = RandomGaussian(tgt_distance, 1.0);
-    Eigen::Vector2d image_point(RandomUniformReal(0.5, width - 0.5),
-                                RandomUniformReal(0.5, height - 0.5));
-    Eigen::Vector3d world_point =
-        camera.CamFromImgRefracPoint(image_point, depth);
-    points2D[i] = image_point;
-    points3D[i] = world_point;
-  }
-
-  const Rigid3d identity_pose = Rigid3d();
-
-  ceres::Problem problem;
-  ceres::Solver::Summary summary;
-  ceres::Solver::Options solver_options;
-  solver_options.max_num_iterations = 100;
-  solver_options.function_tolerance *= 1e-4;
-  solver_options.gradient_tolerance *= 1e-4;
-
-  double* camera_params = tgt_camera.params.data();
-
-  for (size_t i = 0; i < kNumSamples; i++) {
-    const Eigen::Vector2d& point2D = points2D[i];
-    Eigen::Vector3d& point3D = points3D[i];
-
-    ceres::CostFunction* cost_function = nullptr;
-    switch (tgt_camera.model_id) {
-#define CAMERA_MODEL_CASE(CameraModel)                                        \
-  case CameraModel::model_id:                                                 \
-    cost_function = ReprojErrorConstantPoseCostFunction<CameraModel>::Create( \
-        identity_pose, point2D);                                              \
-    break;
-
-      CAMERA_MODEL_SWITCH_CASES
-
-#undef CAMERA_MODEL_CASE
-    }
-
-    problem.AddResidualBlock(
-        cost_function, nullptr, point3D.data(), camera_params);
-
-    problem.SetParameterBlockConstant(point3D.data());
-  }
-
-  solver_options.minimizer_progress_to_stdout = false;
-  ceres::Solve(solver_options, &problem, &summary);
-
-  // if optimization failed, use the original parameters
-  if (!summary.IsSolutionUsable() ||
-      summary.termination_type == ceres::TerminationType::NO_CONVERGENCE) {
-    LOG(WARNING) << "Failed to compute the best fit persepctive model, taking "
-                    "the original intrinsic parameters";
-    tgt_camera.model_id = camera.model_id;
-    tgt_camera.params = camera.params;
-  } else {
-    // Check for residuals.
-    double reproj_error_sum = 0.0;
-    for (size_t i = 0; i < kNumSamples; i++) {
-      const double squared_reproj_error = CalculateSquaredReprojectionError(
-          points2D[i], points3D[i], identity_pose, tgt_camera, false);
-      reproj_error_sum += std::sqrt(squared_reproj_error);
-    }
-    reproj_error_sum = reproj_error_sum / static_cast<double>(kNumSamples);
-    LOG(INFO) << "Best fit parameters for model " << tgt_camera.ModelName()
-              << " computed, average residual: " << reproj_error_sum
-              << std::endl;
-  }
-  return tgt_camera;
-}
-
-TwoViewGeometry EstimateRefractiveTwoViewUseBestFitPinhole(
-    const Camera& camera1,
-    const std::vector<Eigen::Vector2d>& points1,
-    const std::vector<Camera>& virtual_cameras1,
-    const std::vector<Rigid3d>& virtual_from_reals1,
-    const Camera& camera2,
-    const std::vector<Eigen::Vector2d>& points2,
-    const std::vector<Camera>& virtual_cameras2,
-    const std::vector<Rigid3d>& virtual_from_reals2,
-    const FeatureMatches& matches,
-    const TwoViewGeometryOptions& options,
-    bool refine = false) {
-  // Get the best fit pinhole model
-  Camera best_fit_camera1 =
-      BestFitNonRefracCamera(CameraModelId::kOpenCV, camera1, 5.0);
-  Camera best_fit_camera2 =
-      BestFitNonRefracCamera(CameraModelId::kOpenCV, camera2, 5.0);
-
-  // Perform essential matrix estimation
-  TwoViewGeometry geometry = EstimateCalibratedTwoViewGeometry(
-      best_fit_camera1, points1, best_fit_camera2, points2, matches, options);
-
-  if (refine) {
-    // Perform refinement afterwards:
-    std::vector<Eigen::Vector2d> inlier_points1_normalized;
-    std::vector<Eigen::Vector2d> inlier_points2_normalized;
-
-    std::vector<Rigid3d> inlier_virtual_from_reals1;
-    std::vector<Rigid3d> inlier_virtual_from_reals2;
-
-    inlier_points1_normalized.reserve(geometry.inlier_matches.size());
-    inlier_points2_normalized.reserve(geometry.inlier_matches.size());
-
-    inlier_virtual_from_reals1.reserve(geometry.inlier_matches.size());
-    inlier_virtual_from_reals2.reserve(geometry.inlier_matches.size());
-
-    for (const auto& match : geometry.inlier_matches) {
-      const Camera& virtual_camera1 = virtual_cameras1[match.point2D_idx1];
-      const Camera& virtual_camera2 = virtual_cameras2[match.point2D_idx2];
-
-      inlier_points1_normalized.push_back(
-          virtual_camera1.CamFromImg(points1[match.point2D_idx1]));
-      inlier_points2_normalized.push_back(
-          virtual_camera2.CamFromImg(points2[match.point2D_idx2]));
-
-      inlier_virtual_from_reals1.push_back(
-          virtual_from_reals1[match.point2D_idx1]);
-      inlier_virtual_from_reals2.push_back(
-          virtual_from_reals2[match.point2D_idx2]);
-    }
-
-    if (!RefineRefractiveTwoViewGeometry(inlier_points1_normalized,
-                                         inlier_virtual_from_reals1,
-                                         inlier_points2_normalized,
-                                         inlier_virtual_from_reals2,
-                                         &geometry.cam2_from_cam1)) {
-      // Optimization failed, directly return and clean up the inlier matches.
-      geometry.inlier_matches.clear();
-      return geometry;
-    };
-  }
-  return geometry;
+  const double kApproxDepth = 5.0;
+  points_data.best_fit_camera =
+      BestFitNonRefracCamera(CameraModelId::kOpenCV, camera, kApproxDepth);
 }
 
 TwoViewGeometry EstimateRefractiveTwoViewIgnoreRefraction(
@@ -418,12 +271,13 @@ size_t EstimateRelativePose(Camera& camera,
                                             true);
       break;
     case RelTwoViewMethod::kBestFit:
-      two_view_geometry = EstimateRefractiveTwoViewUseBestFitPinhole(
-          camera,
+
+      two_view_geometry = EstimateRefractiveTwoViewGeometryUseBestFit(
+          points_data.best_fit_camera,
           points_data.points2D1_refrac,
           points_data.virtual_cameras1,
           points_data.virtual_from_reals1,
-          camera,
+          points_data.best_fit_camera,
           points_data.points2D2_refrac,
           points_data.virtual_cameras2,
           points_data.virtual_from_reals2,
@@ -432,12 +286,12 @@ size_t EstimateRelativePose(Camera& camera,
           false);
       break;
     case RelTwoViewMethod::kBestFitRefine:
-      two_view_geometry = EstimateRefractiveTwoViewUseBestFitPinhole(
-          camera,
+      two_view_geometry = EstimateRefractiveTwoViewGeometryUseBestFit(
+          points_data.best_fit_camera,
           points_data.points2D1_refrac,
           points_data.virtual_cameras1,
           points_data.virtual_from_reals1,
-          camera,
+          points_data.best_fit_camera,
           points_data.points2D2_refrac,
           points_data.virtual_cameras2,
           points_data.virtual_from_reals2,
@@ -539,10 +393,10 @@ void EvaluateMultipleMethods(colmap::Camera& camera,
     std::cout << "Generating random data ..." << std::endl;
     for (size_t i = 0; i < num_exps; i++) {
       // Create a random GT pose.
-      const double tx = colmap::RandomUniformReal(-5.0, 5.0);
+      const double tx = colmap::RandomUniformReal(8.0, 10.0);
       const double ty = colmap::RandomUniformReal(-2.5, 2.5);
       const double tz = colmap::RandomUniformReal(-2.5, 2.5);
-      const double distance = colmap::RandomUniformReal(0.5, 5.0);
+      const double distance = colmap::RandomUniformReal(6.0, 8.0);
       Eigen::Vector3d proj_center(tx, ty, tz);
 
       colmap::Rigid3d cam2_from_cam1;
@@ -555,12 +409,7 @@ void EvaluateMultipleMethods(colmap::Camera& camera,
     }
 
     std::vector<RelTwoViewMethod> methods = {RelTwoViewMethod::kNonRefrac,
-                                             RelTwoViewMethod::kIgnore,
-                                             RelTwoViewMethod::kIgnoreRefine,
-                                             RelTwoViewMethod::kGR6P,
-                                             RelTwoViewMethod::kGR6PRefine,
-                                             RelTwoViewMethod::kBestFit,
-                                             RelTwoViewMethod::kBestFitRefine};
+                                             RelTwoViewMethod::kBestFit};
 
     // std::vector<RelTwoViewMethod> methods = {RelTwoViewMethod::kNonRefrac,
     //                                          RelTwoViewMethod::kBestFitRefine};
@@ -670,9 +519,9 @@ int main(int argc, char* argv[]) {
   // Flatport setup.
   camera.refrac_model_id = CameraRefracModelId::kFlatPort;
   Eigen::Vector3d int_normal;
-  int_normal[0] = RandomUniformReal(-0.2, 0.2);
-  int_normal[1] = RandomUniformReal(-0.2, 0.2);
-  int_normal[2] = RandomUniformReal(0.8, 1.2);
+  int_normal[0] = RandomUniformReal(-0.1, 0.1);
+  int_normal[1] = RandomUniformReal(-0.1, 0.1);
+  int_normal[2] = RandomUniformReal(0.9, 1.1);
 
   int_normal.normalize();
 
@@ -714,11 +563,19 @@ int main(int argc, char* argv[]) {
       "/home/mshe/workspace/omv_src/colmap-project/refrac_sfm_eval/plots/"
       "rel_pose/compare_methods/";
   std::stringstream ss;
-  ss << output_dir << "/rel_pose_flat_non_ortho_far_num_points_" << num_points
-     << "_inlier_ratio_" << inlier_ratio << ".txt";
+  ss << output_dir
+     << "/rel_pose_flat_non_ortho_far_num_points_eval_different_distances_"
+        "debug_"
+     << num_points << "_inlier_ratio_" << inlier_ratio << ".txt";
   std::string output_path = ss.str();
 
   // Evaluate(camera, num_points, 200, inlier_ratio, output_path);
-  EvaluateMultipleMethods(camera, num_points, 200, inlier_ratio, output_path);
+  EvaluateMultipleMethods(camera, num_points, 10, inlier_ratio, output_path);
+
+  // Camera best_fit_camera =
+  //     BestFitNonRefracCamera(CameraModelId::kOpenCV, camera, 5.0);
+
+  // LOG(INFO) << "Best fit params: ";
+  // LOG(INFO) << best_fit_camera.ParamsToString();
   return true;
 }

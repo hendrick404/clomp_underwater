@@ -41,8 +41,11 @@
 namespace colmap {
 
 FeatureMatcherCache::FeatureMatcherCache(const size_t cache_size,
-                                         const Database* database)
-    : cache_size_(cache_size), database_(database) {
+                                         const Database* database,
+                                         const bool enable_refraction)
+    : cache_size_(cache_size),
+      database_(database),
+      enable_refraction_(enable_refraction) {
   CHECK_NOTNULL(database_);
 }
 
@@ -82,6 +85,16 @@ void FeatureMatcherCache::Setup() {
       images_cache_.size(), [this](const image_t image_id) {
         return database_->ExistsDescriptors(image_id);
       });
+
+  // Hard coded distance as 5.0 meter to compute the best fit pinhole camera
+  // model of the refractive camera.
+  const double kApproxDepth = 5.0;
+  best_fit_cameras_.reserve(cameras_cache_.size());
+  for (const auto& camera : cameras_cache_) {
+    Camera best_fit = BestFitNonRefracCamera(
+        CameraModelId::kOpenCV, camera.second, kApproxDepth);
+    best_fit_cameras_.emplace(camera.first, std::move(best_fit));
+  }
 }
 
 const Camera& FeatureMatcherCache::GetCamera(const camera_t camera_id) const {
@@ -166,6 +179,10 @@ void FeatureMatcherCache::DeleteInlierMatches(const image_t image_id1,
                                               const image_t image_id2) {
   std::lock_guard<std::mutex> lock(database_mutex_);
   database_->DeleteInlierMatches(image_id1, image_id2);
+}
+
+const Camera& FeatureMatcherCache::GetBestFitCameras(camera_t camera_id) const {
+  return best_fit_cameras_.at(camera_id);
 }
 
 FeatureMatcherWorker::FeatureMatcherWorker(
@@ -324,6 +341,11 @@ class VerifierWorker : public Thread {
           data.two_view_geometry = EstimateTwoViewGeometry(
               camera1, points1, camera2, points2, data.matches, options_);
         } else {
+          const Camera& best_fit_camera1 =
+              cache_->GetBestFitCameras(camera1.camera_id);
+          const Camera& best_fit_camera2 =
+              cache_->GetBestFitCameras(camera2.camera_id);
+
           std::vector<Camera> virtual_cameras1;
           std::vector<Camera> virtual_cameras2;
           std::vector<Rigid3d> virtual_from_reals1;
@@ -335,14 +357,16 @@ class VerifierWorker : public Thread {
               points2, virtual_cameras2, virtual_from_reals2);
 
           data.two_view_geometry =
-              EstimateRefractiveTwoViewGeometry(points1,
-                                                virtual_cameras1,
-                                                virtual_from_reals1,
-                                                points2,
-                                                virtual_cameras2,
-                                                virtual_from_reals2,
-                                                data.matches,
-                                                options_);
+              EstimateRefractiveTwoViewGeometryUseBestFit(best_fit_camera1,
+                                                          points1,
+                                                          virtual_cameras1,
+                                                          virtual_from_reals1,
+                                                          best_fit_camera2,
+                                                          points2,
+                                                          virtual_cameras2,
+                                                          virtual_from_reals2,
+                                                          data.matches,
+                                                          options_);
         }
 
         CHECK(output_queue_->Push(std::move(data)));

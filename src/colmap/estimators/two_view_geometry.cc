@@ -43,6 +43,7 @@
 #include "colmap/optim/loransac.h"
 #include "colmap/optim/ransac.h"
 #include "colmap/scene/camera.h"
+#include "colmap/scene/projection.h"
 
 #include <unordered_set>
 
@@ -748,6 +749,7 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometry(
                                            &geometry.cam2_from_cam1)) {
         // Optimization failed, directly return and clean up the inlier matches.
         geometry.inlier_matches.clear();
+        geometry.config = TwoViewGeometry::ConfigurationType::DEGENERATE;
         return geometry;
       };
     }
@@ -849,6 +851,162 @@ bool RefineRefractiveTwoViewGeometry(
   ceres::Solve(solver_options, &problem, &summary);
 
   return summary.IsSolutionUsable();
+}
+
+Camera BestFitNonRefracCamera(const CameraModelId tgt_model_id,
+                              const Camera& camera,
+                              const double approx_depth) {
+  CHECK(camera.IsCameraRefractive())
+      << "Camera is not refractive, cannot compute the best approximated "
+         "non-refractive camera";
+
+  Camera tgt_camera = Camera::CreateFromModelId(camera.camera_id,
+                                                tgt_model_id,
+                                                camera.MeanFocalLength(),
+                                                camera.width,
+                                                camera.height);
+  tgt_camera.SetPrincipalPointX(camera.PrincipalPointX());
+  tgt_camera.SetPrincipalPointY(camera.PrincipalPointY());
+
+  // Sample 2D-3D correspondences for optimization.
+  const size_t kNumSamples = 1000;
+  std::vector<Eigen::Vector2d> points2D(kNumSamples);
+  std::vector<Eigen::Vector3d> points3D(kNumSamples);
+  const double width = static_cast<double>(tgt_camera.width);
+  const double height = static_cast<double>(tgt_camera.height);
+
+  for (size_t i = 0; i < kNumSamples; ++i) {
+    Eigen::Vector2d image_point(RandomUniformReal(0.5, width - 0.5),
+                                RandomUniformReal(0.5, height - 0.5));
+    Eigen::Vector3d world_point =
+        camera.CamFromImgRefracPoint(image_point, approx_depth);
+    points2D[i] = image_point;
+    points3D[i] = world_point;
+  }
+
+  const Rigid3d identity_pose = Rigid3d();
+
+  ceres::Problem problem;
+  ceres::Solver::Summary summary;
+  ceres::Solver::Options solver_options;
+  solver_options.max_num_iterations = 100;
+  solver_options.function_tolerance *= 1e-4;
+  solver_options.gradient_tolerance *= 1e-4;
+
+  double* camera_params = tgt_camera.params.data();
+
+  for (size_t i = 0; i < kNumSamples; i++) {
+    const Eigen::Vector2d& point2D = points2D[i];
+    Eigen::Vector3d& point3D = points3D[i];
+
+    ceres::CostFunction* cost_function = nullptr;
+    switch (tgt_camera.model_id) {
+#define CAMERA_MODEL_CASE(CameraModel)                                        \
+  case CameraModel::model_id:                                                 \
+    cost_function = ReprojErrorConstantPoseCostFunction<CameraModel>::Create( \
+        identity_pose, point2D);                                              \
+    break;
+
+      CAMERA_MODEL_SWITCH_CASES
+
+#undef CAMERA_MODEL_CASE
+    }
+
+    problem.AddResidualBlock(
+        cost_function, nullptr, point3D.data(), camera_params);
+
+    problem.SetParameterBlockConstant(point3D.data());
+  }
+
+  solver_options.minimizer_progress_to_stdout = false;
+  ceres::Solve(solver_options, &problem, &summary);
+
+  // if optimization failed, use the original parameters
+  if (!summary.IsSolutionUsable() ||
+      summary.termination_type == ceres::TerminationType::NO_CONVERGENCE) {
+    LOG(WARNING) << "Failed to compute the best fit persepctive model, taking "
+                    "the original intrinsic parameters";
+    tgt_camera.model_id = camera.model_id;
+    tgt_camera.params = camera.params;
+  } else {
+    // Check for residuals.
+    double reproj_error_sum = 0.0;
+    for (size_t i = 0; i < kNumSamples; i++) {
+      const double squared_reproj_error = CalculateSquaredReprojectionError(
+          points2D[i], points3D[i], identity_pose, tgt_camera, false);
+      reproj_error_sum += std::sqrt(squared_reproj_error);
+    }
+    reproj_error_sum = reproj_error_sum / static_cast<double>(kNumSamples);
+    LOG(INFO) << "Best fit parameters for model " << tgt_camera.ModelName()
+              << " in distance " << approx_depth
+              << " computed, average residual: " << reproj_error_sum
+              << std::endl;
+  }
+  return tgt_camera;
+}
+
+TwoViewGeometry EstimateRefractiveTwoViewGeometryUseBestFit(
+    const Camera& best_fit_camera1,
+    const std::vector<Eigen::Vector2d>& points1,
+    const std::vector<Camera>& virtual_cameras1,
+    const std::vector<Rigid3d>& virtual_from_reals1,
+    const Camera& best_fit_camera2,
+    const std::vector<Eigen::Vector2d>& points2,
+    const std::vector<Camera>& virtual_cameras2,
+    const std::vector<Rigid3d>& virtual_from_reals2,
+    const FeatureMatches& matches,
+    const TwoViewGeometryOptions& options,
+    const bool refine) {
+  // Perform calibrated two-view geometry estimation just like non-refractive
+  // case.
+  TwoViewGeometry geometry = EstimateCalibratedTwoViewGeometry(
+      best_fit_camera1, points1, best_fit_camera2, points2, matches, options);
+
+  if (geometry.config != TwoViewGeometry::ConfigurationType::DEGENERATE) {
+    geometry.config = TwoViewGeometry::ConfigurationType::REFRACTIVE;
+  }
+
+  if (refine) {
+    // Perform refinement afterwards:
+    std::vector<Eigen::Vector2d> inlier_points1_normalized;
+    std::vector<Eigen::Vector2d> inlier_points2_normalized;
+
+    std::vector<Rigid3d> inlier_virtual_from_reals1;
+    std::vector<Rigid3d> inlier_virtual_from_reals2;
+
+    inlier_points1_normalized.reserve(geometry.inlier_matches.size());
+    inlier_points2_normalized.reserve(geometry.inlier_matches.size());
+
+    inlier_virtual_from_reals1.reserve(geometry.inlier_matches.size());
+    inlier_virtual_from_reals2.reserve(geometry.inlier_matches.size());
+
+    for (const auto& match : geometry.inlier_matches) {
+      const Camera& virtual_camera1 = virtual_cameras1[match.point2D_idx1];
+      const Camera& virtual_camera2 = virtual_cameras2[match.point2D_idx2];
+
+      inlier_points1_normalized.push_back(
+          virtual_camera1.CamFromImg(points1[match.point2D_idx1]));
+      inlier_points2_normalized.push_back(
+          virtual_camera2.CamFromImg(points2[match.point2D_idx2]));
+
+      inlier_virtual_from_reals1.push_back(
+          virtual_from_reals1[match.point2D_idx1]);
+      inlier_virtual_from_reals2.push_back(
+          virtual_from_reals2[match.point2D_idx2]);
+    }
+
+    if (!RefineRefractiveTwoViewGeometry(inlier_points1_normalized,
+                                         inlier_virtual_from_reals1,
+                                         inlier_points2_normalized,
+                                         inlier_virtual_from_reals2,
+                                         &geometry.cam2_from_cam1)) {
+      // Optimization failed, directly return and clean up the inlier matches.
+      geometry.inlier_matches.clear();
+      geometry.config = TwoViewGeometry::DEGENERATE;
+      return geometry;
+    };
+  }
+  return geometry;
 }
 
 }  // namespace colmap

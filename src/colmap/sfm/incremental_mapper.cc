@@ -130,6 +130,8 @@ void IncrementalMapper::BeginReconstruction(
 
   filtered_images_.clear();
   num_reg_trials_.clear();
+
+  best_fit_cameras_.clear();
 }
 
 void IncrementalMapper::EndReconstruction(const bool discard) {
@@ -1355,6 +1357,22 @@ bool IncrementalMapper::EstimateInitialTwoViewGeometry(
       return false;
     }
   } else {
+    const double kApproxDepth = 5.0;
+
+    if (best_fit_cameras_.count(camera1.camera_id) == 0) {
+      Camera best_fit =
+          BestFitNonRefracCamera(CameraModelId::kOpenCV, camera1, kApproxDepth);
+      best_fit_cameras_.emplace(camera1.camera_id, std::move(best_fit));
+    }
+
+    if (best_fit_cameras_.count(camera2.camera_id) == 0) {
+      Camera best_fit =
+          BestFitNonRefracCamera(CameraModelId::kOpenCV, camera2, kApproxDepth);
+      best_fit_cameras_.emplace(camera2.camera_id, std::move(best_fit));
+    }
+
+    const Camera& best_fit_camera1 = best_fit_cameras_.at(camera1.camera_id);
+    const Camera& best_fit_camera2 = best_fit_cameras_.at(camera2.camera_id);
     std::vector<Camera> virtual_cameras1;
     std::vector<Camera> virtual_cameras2;
     std::vector<Rigid3d> virtual_from_reals1;
@@ -1365,15 +1383,17 @@ bool IncrementalMapper::EstimateInitialTwoViewGeometry(
 
     two_view_geometry_options.compute_relative_pose = true;
     two_view_geometry =
-        EstimateRefractiveTwoViewGeometry(points1,
-                                          virtual_cameras1,
-                                          virtual_from_reals1,
-                                          points2,
-                                          virtual_cameras2,
-                                          virtual_from_reals2,
-                                          matches,
-                                          two_view_geometry_options,
-                                          true);
+        EstimateRefractiveTwoViewGeometryUseBestFit(best_fit_camera1,
+                                                    points1,
+                                                    virtual_cameras1,
+                                                    virtual_from_reals1,
+                                                    best_fit_camera2,
+                                                    points2,
+                                                    virtual_cameras2,
+                                                    virtual_from_reals2,
+                                                    matches,
+                                                    two_view_geometry_options,
+                                                    true);
   }
 
   // [Experimental]: Since the refractive two-view geometry can not estimate

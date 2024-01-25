@@ -326,6 +326,18 @@ void FeatureExtractionWidget::ReadOptions() {
       options_->image_reader->single_camera_per_folder);
   camera_params_text_->setText(
       QString::fromStdString(options_->image_reader->camera_params));
+
+  const CameraRefracModelId refrac_model_id =
+      CameraRefracModelNameToId(options_->image_reader->camera_refrac_model);
+  for (size_t i = 0; i < camera_refrac_model_ids_.size(); ++i) {
+    if (camera_refrac_model_ids_[i] == static_cast<int>(refrac_model_id)) {
+      SelectCameraRefracModel(i);
+      camera_refrac_model_cb_->setCurrentIndex(i);
+      break;
+    }
+  }
+  camera_refrac_params_text_->setText(
+      QString::fromStdString(options_->image_reader->camera_refrac_params));
 }
 
 void FeatureExtractionWidget::WriteOptions() {

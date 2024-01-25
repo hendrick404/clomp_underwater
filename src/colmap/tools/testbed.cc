@@ -123,52 +123,6 @@ int main(int argc, char* argv[]) {
   }
 
   if (false) {
-    Camera camera;
-    camera.width = 2048;
-    camera.height = 1536;
-    camera.model_id = CameraModelId::kPinhole;
-    camera.params = {1300.900000, 1300.900000, 1024.000000, 768.000000};
-
-    // Flatport setup.
-    camera.refrac_model_id = CameraRefracModelId::kFlatPort;
-    ;
-    Eigen::Vector3d int_normal;
-    int_normal[0] = RandomUniformReal(-0.3, 0.3);
-    int_normal[1] = RandomUniformReal(-0.3, 0.3);
-    int_normal[2] = RandomUniformReal(0.7, 1.3);
-
-    int_normal.normalize();
-
-    // int_normal = Eigen::Vector3d::UnitZ();
-
-    std::vector<double> flatport_params = {int_normal[0],
-                                           int_normal[1],
-                                           int_normal[2],
-                                           0.01,
-                                           0.014,
-                                           1.0,
-                                           1.52,
-                                           1.334};
-    camera.refrac_params = flatport_params;
-
-    for (int i = 0; i < 10; i++) {
-      const double x = RandomUniformReal(
-          0.5, 10.0 /*static_cast<double>(camera.Width()) - 0.5*/);
-      const double y = RandomUniformReal(
-          0.5, 10.0 /*static_cast<double>(camera.Height()) - 0.5*/);
-
-      Eigen::Vector2d point2D(x, y);
-      Ray3D ray_refrac = camera.CamFromImgRefrac(point2D);
-      const Eigen::Vector3d virtual_cam_center =
-          camera.VirtualCameraCenter(ray_refrac);
-
-      std::cout << "point: " << point2D.transpose()
-                << ", virtual cam center: " << virtual_cam_center.transpose()
-                << std::endl;
-    }
-  }
-
-  if (false) {
     Eigen::Vector3d int_normal;
     int_normal[0] = RandomUniformReal(-0.3, 0.3);
     int_normal[1] = RandomUniformReal(-0.3, 0.3);
@@ -212,9 +166,6 @@ int main(int argc, char* argv[]) {
     reconstruction.Write(output_path);
   }
 
-  if (false) {
-    std::cout << std::numeric_limits<double>::epsilon() << std::endl;
-  }
   if (false) {
     // Check projection at the image boundary.
     // Setup parameters
@@ -463,45 +414,12 @@ int main(int argc, char* argv[]) {
     std::cout << camera.RefracParamsToString() << std::endl;
   }
 
-  if (false) {
-    // Given a camera setup, check for total reflection.
-    Camera camera;
-    camera.width = 1113;
-    camera.height = 835;
-    camera.model_id = CameraModelId::kPinhole;
-    std::vector<double> params = {
-        100.476237, 100.476237, 556.500000, 417.500000};
-    camera.params = params;
-
-    camera.refrac_model_id = CameraRefracModelId::kFlatPort;
-    std::vector<double> refrac_params = {0.000000,
-                                         0.000000,
-                                         1.000000,
-                                         0.050000,
-                                         0.007000,
-                                         1.000000,
-                                         1.520000,
-                                         1.330000};
-    camera.refrac_params = refrac_params;
-
-    Eigen::Vector2d p1(0.0, 0.0);
-    Eigen::Vector2d p2(static_cast<double>(camera.width) + 2000.0,
-                       camera.height);
-
-    // Ray3D ray1 = camera.CamFromImgRefrac(p1);
-    Ray3D ray2 = camera.CamFromImgRefrac(p2);
-
-    // std::cout << "ray1: " << ray1.dir.transpose() << std::endl;
-    std::cout << "ray2: " << ray2.dir.transpose() << std::endl;
-  }
-
   if (true) {
-    double ry = RandomUniformReal(-5.0, 5.0);
-    Eigen::Matrix3d rot = EulerAnglesToRotationMatrix(0.0, DegToRad(ry), 0.0);
+    std::unordered_map<double, std::string> test;
+    test.emplace(std::make_pair(0.5, "0.5"));
+    test.emplace(std::make_pair(1.0, "1.0"));
 
-    Eigen::Vector3d int_normal = rot * Eigen::Vector3d::UnitZ();
-
-    std::cout << int_normal.transpose() << std::endl;
+    LOG(INFO) << test.at(1.0);
   }
 
   return true;

@@ -97,6 +97,8 @@ void BundleAdjustmentController::Run() {
   BundleAdjuster bundle_adjuster(ba_options, ba_config);
   bundle_adjuster.Solve(reconstruction_.get());
 
+  reconstruction_->UpdatePoint3DErrors(ba_options.enable_refraction);
+
   GetTimer().PrintMinutes();
 }
 

@@ -247,7 +247,7 @@ class Reconstruction {
   double ComputeMeanReprojectionError() const;
 
   // Updates mean reprojection errors for all 3D points.
-  void UpdatePoint3DErrors();
+  void UpdatePoint3DErrors(bool is_refractive = false);
 
   // Read data from text or binary file. Prefer binary data if it exists.
   void Read(const std::string& path);
