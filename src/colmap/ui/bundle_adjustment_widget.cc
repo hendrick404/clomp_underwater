@@ -111,7 +111,8 @@ void BundleAdjustmentWidget::Run() {
   if (!options_->mapper->use_pose_prior) {
     // Normalize scene for numerical stability and
     // to avoid large scale changes in viewer.
-    reconstruction_->Normalize(options_->mapper->enable_refraction);
+    reconstruction_->Normalize(
+        10.0, 0.1, 0.9, true, options_->mapper->enable_refraction);
   }
   thread_control_widget_->StartThread(
       "Bundle adjusting...", true, std::move(thread));

@@ -415,11 +415,15 @@ int main(int argc, char* argv[]) {
   }
 
   if (true) {
-    std::unordered_map<double, std::string> test;
-    test.emplace(std::make_pair(0.5, "0.5"));
-    test.emplace(std::make_pair(1.0, "1.0"));
+    Eigen::Vector3d a;
+    a << 0.0, 0.0, 1.0;
+    
+    Eigen::Matrix3d Rx = Eigen::AngleAxisd(DegToRad(10.0), Eigen::Vector3d::UnitX()).toRotationMatrix();
 
-    LOG(INFO) << test.at(1.0);
+    a = Rx * a;
+    a.normalize();
+
+    LOG(INFO) << "a: " << a.transpose();
   }
 
   return true;
