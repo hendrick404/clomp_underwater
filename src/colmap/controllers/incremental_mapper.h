@@ -168,6 +168,10 @@ struct IncrementalMapperOptions {
   // Which refractive parameters to optimize during the reconstruction.
   bool ba_refine_refrac_params = false;
 
+  // Whether to fix refractive parameters until registering a certain
+  // number of images.
+  int ba_fix_refrac_params_until_num_images = -1;
+
   IncrementalMapper::Options mapper;
   IncrementalTriangulator::Options triangulation;
 

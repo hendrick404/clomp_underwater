@@ -28,6 +28,13 @@ void AdjustGlobalBundle(const IncrementalMapperOptions& options,
     custom_ba_options.refine_extra_params = false;
   }
 
+  if (options.enable_refraction &&
+      options.ba_fix_refrac_params_until_num_images > 0 &&
+      num_reg_images <
+          static_cast<size_t>(options.ba_fix_refrac_params_until_num_images)) {
+    custom_ba_options.refine_refrac_params = false;
+  }
+
   if (num_reg_images <
       static_cast<size_t>(options.ba_refine_prior_from_cam_after_num_images)) {
     custom_ba_options.refine_prior_from_cam = false;

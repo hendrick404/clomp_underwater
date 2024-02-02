@@ -417,13 +417,28 @@ int main(int argc, char* argv[]) {
   if (true) {
     Eigen::Vector3d a;
     a << 0.0, 0.0, 1.0;
-    
-    Eigen::Matrix3d Rx = Eigen::AngleAxisd(DegToRad(10.0), Eigen::Vector3d::UnitX()).toRotationMatrix();
 
-    a = Rx * a;
+    Eigen::Matrix3d Rx =
+        Eigen::AngleAxisd(DegToRad(5.0), Eigen::Vector3d::UnitX())
+            .toRotationMatrix();
+    Eigen::Matrix3d Ry =
+        Eigen::AngleAxisd(DegToRad(5.0), Eigen::Vector3d::UnitY())
+            .toRotationMatrix();
+
+    a = Ry * Rx * a;
     a.normalize();
 
+    double cos_theta = a.dot(Eigen::Vector3d::UnitZ());
+    if (cos_theta < 0) {
+      cos_theta = -cos_theta;
+    }
+    if (cos_theta > 1) {
+      cos_theta = 1.0;
+    }
+    double angular_diff = RadToDeg(acos(cos_theta));
+
     LOG(INFO) << "a: " << a.transpose();
+    LOG(INFO) << "angle: " << angular_diff;
   }
 
   return true;

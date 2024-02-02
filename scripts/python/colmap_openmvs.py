@@ -401,6 +401,12 @@ def parse_args():
         default=False,
     )
     group.add_argument(
+        "--ba_fix_refrac_params_until_num_images",
+        help="fix refractive camera parameters until registering a certain number of images",
+        type=int,
+        default=-1,
+    )
+    group.add_argument(
         "--write_snapshot",
         help="for every [snapshot_images_freq] it will write out a snapshot of the current reconstruction, useful feature for debugging",
         action="store_true",
@@ -538,6 +544,9 @@ class COLMAPOpenMVSPipeline:
         )
         self.fix_intrin_until: int = args.ba_fix_intrin_until_num_images
         self.ba_refine_refrac_params = args.ba_refine_refrac_params
+        self.ba_fix_refrac_params_until: int = (
+            args.ba_fix_refrac_params_until_num_images
+        )
 
         self.write_snapshot: bool = args.write_snapshot
         self.snapshot_images_freq: int = args.snapshot_images_freq
@@ -839,6 +848,8 @@ class COLMAPOpenMVSPipeline:
             mapper_cmds += [
                 "--Mapper.ba_refine_refrac_params",
                 f"{self.ba_refine_refrac_params}",
+                "--Mapper.ba_fix_refrac_params_until_num_images",
+                f"{self.ba_fix_refrac_params_until}",
             ]
 
         if self.write_snapshot and not self.hybrid_mapper:

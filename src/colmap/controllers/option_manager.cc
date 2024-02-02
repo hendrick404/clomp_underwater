@@ -567,6 +567,8 @@ void OptionManager::AddMapperOptions() {
                               &mapper->enable_refraction);
   AddAndRegisterDefaultOption("Mapper.ba_refine_refrac_params",
                               &mapper->ba_refine_refrac_params);
+  AddAndRegisterDefaultOption("Mapper.ba_fix_refrac_params_until_num_images",
+                              &mapper->ba_fix_refrac_params_until_num_images);
 
   // IncrementalMapper.
   AddAndRegisterDefaultOption("Mapper.init_min_num_inliers",
