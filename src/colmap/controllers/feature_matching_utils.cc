@@ -86,14 +86,16 @@ void FeatureMatcherCache::Setup() {
         return database_->ExistsDescriptors(image_id);
       });
 
-  // Hard coded distance as 5.0 meter to compute the best fit pinhole camera
-  // model of the refractive camera.
-  const double kApproxDepth = 5.0;
-  best_fit_cameras_.reserve(cameras_cache_.size());
-  for (const auto& camera : cameras_cache_) {
-    Camera best_fit = BestFitNonRefracCamera(
-        CameraModelId::kOpenCV, camera.second, kApproxDepth);
-    best_fit_cameras_.emplace(camera.first, std::move(best_fit));
+  if (enable_refraction_) {
+    // Hard coded distance as 5.0 meter to compute the best fit pinhole camera
+    // model of the refractive camera.
+    const double kApproxDepth = 5.0;
+    best_fit_cameras_.reserve(cameras_cache_.size());
+    for (const auto& camera : cameras_cache_) {
+      Camera best_fit = BestFitNonRefracCamera(
+          CameraModelId::kOpenCV, camera.second, kApproxDepth);
+      best_fit_cameras_.emplace(camera.first, std::move(best_fit));
+    }
   }
 }
 
