@@ -184,7 +184,9 @@ class ExhaustiveFeatureMatcher : public Thread {
       : options_(options),
         matching_options_(matching_options),
         database_(database_path),
-        cache_(5 * options_.block_size, &database_),
+        cache_(5 * options_.block_size,
+               &database_,
+               geometry_options.enable_refraction),
         matcher_(matching_options, geometry_options, &database_, &cache_) {
     CHECK(options.Check());
     CHECK(matching_options.Check());
@@ -294,7 +296,8 @@ class SequentialFeatureMatcher : public Thread {
         database_(database_path),
         cache_(std::max(5 * options_.loop_detection_num_images,
                         5 * options_.overlap),
-               &database_),
+               &database_,
+               geometry_options.enable_refraction),
         matcher_(matching_options, geometry_options, &database_, &cache_) {
     CHECK(options.Check());
     CHECK(matching_options.Check());
@@ -465,7 +468,9 @@ class VocabTreeFeatureMatcher : public Thread {
       : options_(options),
         matching_options_(matching_options),
         database_(database_path),
-        cache_(5 * options_.num_images, &database_),
+        cache_(5 * options_.num_images,
+               &database_,
+               geometry_options.enable_refraction),
         matcher_(matching_options, geometry_options, &database_, &cache_) {
     CHECK(options.Check());
     CHECK(matching_options.Check());
@@ -584,7 +589,9 @@ class SpatialFeatureMatcher : public Thread {
       : options_(options),
         matching_options_(matching_options),
         database_(database_path),
-        cache_(5 * options_.max_num_neighbors, &database_),
+        cache_(5 * options_.max_num_neighbors,
+               &database_,
+               geometry_options.enable_refraction),
         matcher_(matching_options, geometry_options, &database_, &cache_) {
     CHECK(options.Check());
     CHECK(matching_options.Check());
@@ -811,7 +818,9 @@ class TransitiveFeatureMatcher : public Thread {
       : options_(options),
         matching_options_(matching_options),
         database_(database_path),
-        cache_(options_.batch_size, &database_),
+        cache_(options_.batch_size,
+               &database_,
+               geometry_options.enable_refraction),
         matcher_(matching_options, geometry_options, &database_, &cache_) {
     CHECK(options.Check());
     CHECK(matching_options.Check());
@@ -939,7 +948,8 @@ class ImagePairsFeatureMatcher : public Thread {
       : options_(options),
         matching_options_(matching_options),
         database_(database_path),
-        cache_(options.block_size, &database_),
+        cache_(
+            options.block_size, &database_, geometry_options.enable_refraction),
         matcher_(matching_options, geometry_options, &database_, &cache_) {
     CHECK(options.Check());
     CHECK(matching_options.Check());
@@ -1085,7 +1095,7 @@ class FeaturePairsFeatureMatcher : public Thread {
         matching_options_(matching_options),
         geometry_options_(geometry_options),
         database_(database_path),
-        cache_(kCacheSize, &database_) {
+        cache_(kCacheSize, &database_, geometry_options.enable_refraction) {
     CHECK(options.Check());
     CHECK(matching_options.Check());
     CHECK(geometry_options.Check());
