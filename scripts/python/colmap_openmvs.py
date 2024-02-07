@@ -472,7 +472,8 @@ class COLMAPOpenMVSPipeline:
 
         assert self.colmap_bin is not None, "COLMAP not found!"
         assert self.openmvs_bin is not None, "OpenMVS not found!"
-        assert self.omv_bin is not None, "OMV not found!"
+        if args.normalize_color:
+            assert self.omv_bin is not None, "OMV not found!"
 
         self.cmds_logger: List[Tuple[str, List[str]]] = []
 
