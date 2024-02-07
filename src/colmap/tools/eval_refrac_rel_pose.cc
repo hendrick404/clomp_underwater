@@ -491,6 +491,34 @@ void EvaluateMultipleMethods(colmap::Camera& camera,
   file.close();
 }
 
+TwoViewGeometry XiaoHuInit(const PointsData& points_data) {
+  LOG(INFO) << "Evaluating XiaoHu's approach";
+  return TwoViewGeometry();
+}
+
+void EvaluateXiaoHu(const Camera& camera) {
+  // Create a random GT pose.
+  const double tx = colmap::RandomUniformReal(8.0, 10.0);
+  const double ty = colmap::RandomUniformReal(-2.5, 2.5);
+  const double tz = colmap::RandomUniformReal(-2.5, 2.5);
+  const double distance = colmap::RandomUniformReal(6.0, 8.0);
+  Eigen::Vector3d proj_center(tx, ty, tz);
+
+  colmap::Rigid3d cam2_from_cam1;
+
+  GenerateRandomSecondViewPose(proj_center, distance, cam2_from_cam1);
+  PointsData points_data;
+  GenerateRandom2D2DPoints(camera, 200, cam2_from_cam1, points_data, 0.0, 1.0);
+
+  TwoViewGeometry geometry = XiaoHuInit(points_data);
+
+  LOG(INFO) << "GT  : "
+            << points_data.cam2_from_cam1_gt.rotation.coeffs().transpose()
+            << " , " << points_data.cam2_from_cam1_gt.translation.transpose();
+  LOG(INFO) << "EST : " << geometry.cam2_from_cam1.rotation.coeffs().transpose()
+            << " , " << geometry.cam2_from_cam1.translation.transpose();
+}
+
 int main(int argc, char* argv[]) {
   SetPRNGSeed(time(NULL));
 
@@ -557,7 +585,7 @@ int main(int argc, char* argv[]) {
 
   // Generate simulated point data.
   const size_t num_points = 200;
-  const double inlier_ratio = 0.7;
+  const double inlier_ratio = 1.0;
 
   std::string output_dir =
       "/home/mshe/workspace/omv_src/colmap-project/refrac_sfm_eval/plots/"
@@ -569,13 +597,8 @@ int main(int argc, char* argv[]) {
      << num_points << "_inlier_ratio_" << inlier_ratio << ".txt";
   std::string output_path = ss.str();
 
-  // Evaluate(camera, num_points, 200, inlier_ratio, output_path);
-  EvaluateMultipleMethods(camera, num_points, 10, inlier_ratio, output_path);
+  EvaluateXiaoHu(camera);
+  // EvaluateMultipleMethods(camera, num_points, 10, inlier_ratio, output_path);
 
-  // Camera best_fit_camera =
-  //     BestFitNonRefracCamera(CameraModelId::kOpenCV, camera, 5.0);
-
-  // LOG(INFO) << "Best fit params: ";
-  // LOG(INFO) << best_fit_camera.ParamsToString();
   return true;
 }

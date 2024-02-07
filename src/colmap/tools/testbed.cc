@@ -428,6 +428,8 @@ int main(int argc, char* argv[]) {
     a = Ry * Rx * a;
     a.normalize();
 
+    a << 0.1658429, 0.14809199, 0.97496918;
+
     double cos_theta = a.dot(Eigen::Vector3d::UnitZ());
     if (cos_theta < 0) {
       cos_theta = -cos_theta;
