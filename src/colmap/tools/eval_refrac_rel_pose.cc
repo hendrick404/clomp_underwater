@@ -1,14 +1,20 @@
 #include "colmap/estimators/cost_functions.h"
 #include "colmap/estimators/generalized_pose.h"
 #include "colmap/estimators/two_view_geometry.h"
+#include "colmap/geometry/essential_matrix.h"
 #include "colmap/geometry/pose.h"
 #include "colmap/geometry/rigid3.h"
+#include "colmap/geometry/triangulation.h"
 #include "colmap/math/math.h"
 #include "colmap/math/random.h"
 #include "colmap/scene/camera.h"
 #include "colmap/scene/projection.h"
 
 #include <fstream>
+
+#include <Eigen/LU>
+#include <Eigen/SVD>
+#include <unsupported/Eigen/KroneckerProduct>
 
 using namespace colmap;
 
@@ -491,10 +497,218 @@ void EvaluateMultipleMethods(colmap::Camera& camera,
   file.close();
 }
 
-TwoViewGeometry XiaoHuInit(const PointsData& points_data) {
-  LOG(INFO) << "Evaluating XiaoHu's approach";
-  return TwoViewGeometry();
+/// Xiaohu's relative pose init ///
+
+namespace {
+// method for calculating the pseudo-Inverse as recommended by Eigen developers
+template <typename _Matrix_Type_>
+_Matrix_Type_ pseudoInverse(
+    const _Matrix_Type_& a,
+    double epsilon = std::numeric_limits<double>::epsilon()) {
+  Eigen::JacobiSVD<_Matrix_Type_> svd(
+      a, Eigen::ComputeFullU | Eigen::ComputeFullV);
+  // For a non-square matrix
+  // Eigen::JacobiSVD< _Matrix_Type_ > svd(a ,Eigen::ComputeThinU |
+  // Eigen::ComputeThinV);
+  double tolerance = epsilon * std::max(a.cols(), a.rows()) *
+                     svd.singularValues().array().abs()(0);
+  return svd.matrixV() *
+         (svd.singularValues().array().abs() > tolerance)
+             .select(svd.singularValues().array().inverse(), 0)
+             .matrix()
+             .asDiagonal() *
+         svd.matrixU().adjoint();
 }
+}  // namespace
+
+TwoViewGeometry XiaoHuInit(const Camera& camera,
+                           const PointsData& points_data) {
+  LOG(INFO) << "Evaluating XiaoHu's approach";
+
+  TwoViewGeometry two_view_geometry;
+
+  /// prepare the rays.
+  const size_t kNumPoints = points_data.points2D1_refrac.size();
+
+  std::vector<colmap::Ray3D> rays1;
+  std::vector<colmap::Ray3D> rays2;
+
+  rays1.reserve(kNumPoints);
+  rays2.reserve(kNumPoints);
+
+  for (const auto& point : points_data.points2D1_refrac) {
+    rays1.push_back(camera.CamFromImgRefrac(point));
+  }
+  for (const auto& point : points_data.points2D2_refrac) {
+    rays2.push_back(camera.CamFromImgRefrac(point));
+  }
+
+  // virtual camera centers.
+  std::vector<Eigen::Vector3d> vc1, vc2;
+  vc1.reserve(kNumPoints);
+  vc2.reserve(kNumPoints);
+
+  for (size_t i = 0; i < kNumPoints; ++i) {
+    vc1.push_back(points_data.virtual_from_reals1[i].rotation.inverse() *
+                  -points_data.virtual_from_reals1[i].translation);
+    vc2.push_back(points_data.virtual_from_reals2[i].rotation.inverse() *
+                  -points_data.virtual_from_reals2[i].translation);
+  }
+
+  Eigen::MatrixXd A(kNumPoints, 18);
+  A.setZero();
+
+  for (size_t i = 0; i < kNumPoints; ++i) {
+    Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
+    const Eigen::Vector3d r1 = rays1[i].dir;
+    const Eigen::Matrix<double, 1, 3> r1_t = rays1[i].dir.transpose();
+    const Eigen::Matrix<double, 1, 3> r2_t = rays2[i].dir.transpose();
+
+    const Eigen::Vector3d& cv1 = vc1[i];
+    const Eigen::Vector3d& cv2 = vc2[i];
+    Eigen::Matrix3d cv1_hat = CrossProductMatrix(cv1);
+    Eigen::Matrix3d cv2_hat = CrossProductMatrix(cv2);
+
+    // Compute the first kronecker product.
+    Eigen::KroneckerProduct<Eigen::Matrix<double, 1, 3>,
+                            Eigen::Matrix<double, 3, 3>>
+        kron1 = Eigen::KroneckerProduct<Eigen::Matrix<double, 1, 3>,
+                                        Eigen::Matrix<double, 3, 3>>(r1_t, I);
+
+    // Compute the second kronecker product.
+    Eigen::Matrix<double, 1, 3> cv1_u = (cv1_hat * r1).transpose();
+    Eigen::KroneckerProduct<Eigen::Matrix<double, 1, 3>,
+                            Eigen::Matrix<double, 3, 3>>
+        kron2 = Eigen::KroneckerProduct<Eigen::Matrix<double, 1, 3>,
+                                        Eigen::Matrix<double, 3, 3>>(cv1_u, I);
+
+    A.block<1, 9>(i, 0) = r2_t * cv2_hat * kron1 - r2_t * kron2;
+    A.block<1, 9>(i, 9) = -r2_t * kron1;
+  }
+
+  Eigen::MatrixXd AR = A.block(0, 0, kNumPoints, 9);
+  Eigen::MatrixXd AE = A.block(0, 9, kNumPoints, 9);
+  Eigen::MatrixXd ARpinv = AR.completeOrthogonalDecomposition().pseudoInverse();
+  // Eigen::MatrixXd ARpinv = pseudoInverse(AR);
+  Eigen::MatrixXd eye_N(kNumPoints, kNumPoints);
+  eye_N.setIdentity();
+
+  Eigen::MatrixXd B = (AR * ARpinv - eye_N) * AE;
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd(B, Eigen::ComputeFullV);
+
+  Eigen::MatrixXd sol = svd.matrixV().col(8);
+  const Eigen::Map<const Eigen::Matrix3d> E_raw(sol.data());
+
+  // Enforcing the internal constraint that two singular values must be equal
+  // and one must be zero.
+  Eigen::JacobiSVD<Eigen::Matrix3d> E_raw_svd(
+      E_raw, Eigen::ComputeFullU | Eigen::ComputeFullV);
+  Eigen::Vector3d singular_values = E_raw_svd.singularValues();
+  singular_values(0) = (singular_values(0) + singular_values(1)) / 2.0;
+  singular_values(1) = singular_values(0);
+  singular_values(2) = 0.0;
+  const Eigen::Matrix3d E = E_raw_svd.matrixU() * singular_values.asDiagonal() *
+                            E_raw_svd.matrixV().transpose();
+
+  // Solve kernel part (Basically repeat PoseFromEssentialMatrix, but replace
+  // proj_center by virtual_proj_center).
+  Eigen::Matrix3d R_cam1_from_cam2;
+  Eigen::Vector3d t_cam1_from_cam2;
+  std::vector<Eigen::Vector3d> points3D;
+  Eigen::Matrix3d R1;
+  Eigen::Matrix3d R2;
+  Eigen::Vector3d t;
+  DecomposeEssentialMatrix(E, &R1, &R2, &t);
+  points3D.clear();
+
+  // Generate all possible projection matrix combinations.
+  const std::array<Eigen::Matrix3d, 4> R_cmbs{{R1, R2, R1, R2}};
+  const std::array<Eigen::Vector3d, 4> t_cmbs{{t, t, -t, -t}};
+
+  auto CalculateDepth = [](const Eigen::Matrix3x4d& cam_from_world,
+                           const Eigen::Vector3d& point3D) {
+    const double proj_z = cam_from_world.row(2).dot(point3D.homogeneous());
+    return proj_z * cam_from_world.col(2).norm();
+  };
+
+  for (size_t i = 0; i < R_cmbs.size(); ++i) {
+    std::vector<Eigen::Vector3d> points3D_cmb;
+    // Check cheriality here
+
+    const double kMinDepth = std::numeric_limits<double>::epsilon();
+    const double max_depth =
+        1000.0f * (R_cmbs[i].transpose() * t_cmbs[i]).norm();
+
+    for (size_t j = 0; j < kNumPoints; ++j) {
+      const Rigid3d& virtual_from_real1 = points_data.virtual_from_reals1[j];
+      const Rigid3d& virtual_from_real2 = points_data.virtual_from_reals2[j];
+
+      const Rigid3d world_from_cam2(Eigen::Quaterniond(R_cmbs[i].transpose()),
+                                    t_cmbs[i]);
+      const Rigid3d cam2_from_world = Inverse(world_from_cam2);
+      const Rigid3d virtual2_from_world = virtual_from_real2 * cam2_from_world;
+
+      const Eigen::Matrix3x4d virtual_proj_matrix1 =
+          virtual_from_real1.ToMatrix();
+      const Eigen::Matrix3x4d virtual_proj_matrix2 =
+          virtual2_from_world.ToMatrix();
+
+      const Eigen::Vector3d point3D =
+          TriangulatePoint(virtual_proj_matrix1,
+                           virtual_proj_matrix2,
+                           rays1[j].dir.hnormalized(),
+                           rays2[j].dir.hnormalized());
+
+      const double depth1 = CalculateDepth(virtual_proj_matrix1, point3D);
+      if (depth1 > kMinDepth && depth1 < max_depth) {
+        const double depth2 = CalculateDepth(virtual_proj_matrix2, point3D);
+        if (depth2 > kMinDepth && depth2 < max_depth) {
+          points3D_cmb.push_back(point3D);
+        }
+      }
+    }
+
+    if (points3D_cmb.size() >= points3D.size()) {
+      R_cam1_from_cam2 = R_cmbs[i].transpose();
+      t_cam1_from_cam2 = t_cmbs[i];
+      points3D = points3D_cmb;
+    }
+  }
+
+  // Solve for t
+
+  A.resize(kNumPoints, 3);
+  A.setZero();
+
+  Eigen::VectorXd b(kNumPoints);
+  b.setZero();
+
+  for (size_t i = 0; i < kNumPoints; ++i) {
+    A.row(i) = rays2[i].dir.transpose() * R_cam1_from_cam2.transpose() *
+               CrossProductMatrix(rays1[i].dir);
+    // b(i,:) =
+    // r22(:,i)'*skewm(t2(:,i))*R'*r12(:,i)-r22(:,i)'*R'*skewm(t1(:,i))*r12(:,i);
+    b.row(i) = rays2[i].dir.transpose() * CrossProductMatrix(vc2[i]) *
+                   R_cam1_from_cam2.transpose() * rays1[i].dir -
+               rays2[i].dir.transpose() * R_cam1_from_cam2.transpose() *
+                   CrossProductMatrix(vc1[i]) * rays1[i].dir;
+  }
+
+  Eigen::JacobiSVD<Eigen::MatrixXd> t_solver_svd(
+      A, Eigen::ComputeFullU | Eigen::ComputeFullV);
+  t_cam1_from_cam2 = t_solver_svd.solve(b);
+
+  // LOG(INFO) << "R1: \n" << R1;
+  // LOG(INFO) << "R2: \n" << R2;
+  // LOG(INFO) << "t: \n" << R2;
+
+  Rigid3d cam1_from_cam2(Eigen::Quaterniond(R_cam1_from_cam2),
+                         t_cam1_from_cam2);
+  two_view_geometry.cam2_from_cam1 = Inverse(cam1_from_cam2);
+
+  return two_view_geometry;
+}
+/// Xiaohu's relative pose init ///
 
 void EvaluateXiaoHu(const Camera& camera) {
   // Create a random GT pose.
@@ -508,9 +722,9 @@ void EvaluateXiaoHu(const Camera& camera) {
 
   GenerateRandomSecondViewPose(proj_center, distance, cam2_from_cam1);
   PointsData points_data;
-  GenerateRandom2D2DPoints(camera, 200, cam2_from_cam1, points_data, 0.0, 1.0);
+  GenerateRandom2D2DPoints(camera, 100, cam2_from_cam1, points_data, 0.5, 1.0);
 
-  TwoViewGeometry geometry = XiaoHuInit(points_data);
+  TwoViewGeometry geometry = XiaoHuInit(camera, points_data);
 
   LOG(INFO) << "GT  : "
             << points_data.cam2_from_cam1_gt.rotation.coeffs().transpose()
@@ -551,7 +765,8 @@ int main(int argc, char* argv[]) {
   int_normal[1] = RandomUniformReal(-0.1, 0.1);
   int_normal[2] = RandomUniformReal(0.9, 1.1);
 
-  int_normal.normalize();
+  int_normal = Eigen::Vector3d::UnitZ();
+  // int_normal.normalize();
 
   std::vector<double> flatport_params = {int_normal[0],
                                          int_normal[1],

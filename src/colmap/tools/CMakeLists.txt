@@ -39,14 +39,14 @@ if(CUDA_ENABLED)
     )
 endif()
 
-#COLMAP_ADD_EXECUTABLE(
-#    NAME colmap_testbed
-#    SRCS 
-#        testbed.cc
-#    LINK_LIBS
-#        colmap_scene
-#        colmap_estimators
-#)
+COLMAP_ADD_EXECUTABLE(
+   NAME colmap_testbed
+   SRCS 
+       testbed.cc
+   LINK_LIBS
+       colmap_scene
+       colmap_estimators
+)
 
 COLMAP_ADD_EXECUTABLE(
     NAME colmap_sel_imgs_by_pos
@@ -76,7 +76,7 @@ COLMAP_ADD_EXECUTABLE(
         colmap_estimators
 )
 
-#set_target_properties(colmap_testbed PROPERTIES OUTPUT_NAME testbed) 
+set_target_properties(colmap_testbed PROPERTIES OUTPUT_NAME testbed) 
 set_target_properties(colmap_sel_imgs_by_pos PROPERTIES OUTPUT_NAME sel_imgs_by_pos)
 set_target_properties(colmap_eval_refrac_abs_pose PROPERTIES OUTPUT_NAME eval_refrac_abs_pose)
 set_target_properties(colmap_eval_refrac_rel_pose PROPERTIES OUTPUT_NAME eval_refrac_rel_pose) 

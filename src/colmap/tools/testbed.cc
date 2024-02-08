@@ -414,7 +414,7 @@ int main(int argc, char* argv[]) {
     std::cout << camera.RefracParamsToString() << std::endl;
   }
 
-  if (true) {
+  if (false) {
     Eigen::Vector3d a;
     a << 0.0, 0.0, 1.0;
 
