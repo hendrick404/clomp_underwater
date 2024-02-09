@@ -206,4 +206,15 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometryUseBestFit(
     const TwoViewGeometryOptions& options,
     bool refine = false);
 
+TwoViewGeometry EstimateRefractiveTwoViewGeometryXiaoHu(
+    const std::vector<Eigen::Vector2d>& points1,
+    const std::vector<Camera>& virtual_cameras1,
+    const std::vector<Rigid3d>& virtual_from_reals1,
+    const std::vector<Eigen::Vector2d>& points2,
+    const std::vector<Camera>& virtual_cameras2,
+    const std::vector<Rigid3d>& virtual_from_reals2,
+    const FeatureMatches& matches,
+    const TwoViewGeometryOptions& options,
+    bool refine = false);
+
 }  // namespace colmap

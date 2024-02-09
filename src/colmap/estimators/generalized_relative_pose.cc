@@ -737,8 +737,6 @@ void GR6PEstimator::Residuals(const std::vector<X_t>& points1,
     (*residuals)[i] = x2tEx1 * x2tEx1 /
                       (Ex1(0) * Ex1(0) + Ex1(1) * Ex1(1) + Etx2(0) * Etx2(0) +
                        Etx2(1) * Etx2(1));
-    // std::cout << "In the residual: " << points1[i].ray_in_cam.hnormalized().homogeneous().transpose() << " -- " << points2[i].ray_in_cam.hnormalized() << std::endl;
-    // std::cout << "cost: " << (*residuals)[i] << std::endl;
   }
 }
 

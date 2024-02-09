@@ -54,6 +54,7 @@ COLMAP_ADD_LIBRARY(
         two_view_geometry.h two_view_geometry.cc
         utils.h utils.cc
         pose_graph_optimizer.h pose_graph_optimizer.cc
+        refrac_relative_pose.h refrac_relative_pose.cc
     PUBLIC_LINK_LIBS
         colmap_util
         colmap_math

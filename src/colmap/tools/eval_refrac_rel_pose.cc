@@ -1,5 +1,6 @@
 #include "colmap/estimators/cost_functions.h"
 #include "colmap/estimators/generalized_pose.h"
+#include "colmap/estimators/refrac_relative_pose.h"
 #include "colmap/estimators/two_view_geometry.h"
 #include "colmap/geometry/essential_matrix.h"
 #include "colmap/geometry/pose.h"
@@ -42,6 +43,8 @@ enum class RelTwoViewMethod {
   kGR6PRefine = 3,
   kBestFit = 4,
   kBestFitRefine = 5,
+  kXiaoHu = 6,
+  kXiaoHuRefine = 7,
 };
 
 void GenerateRandomSecondViewPose(const Eigen::Vector3d& proj_center,
@@ -226,7 +229,6 @@ size_t EstimateRelativePose(Camera& camera,
                             RelTwoViewMethod method_id) {
   size_t num_points = points_data.points2D1.size();
   size_t num_inliers = 0;
-
   TwoViewGeometryOptions two_view_geometry_options;
   two_view_geometry_options.compute_relative_pose = true;
   two_view_geometry_options.ransac_options.max_error = 4.0;
@@ -333,6 +335,30 @@ size_t EstimateRelativePose(Camera& camera,
           two_view_geometry_options,
           true);
       break;
+    case RelTwoViewMethod::kXiaoHu:
+      two_view_geometry = EstimateRefractiveTwoViewGeometryXiaoHu(
+          points_data.points2D1_refrac,
+          points_data.virtual_cameras1,
+          points_data.virtual_from_reals1,
+          points_data.points2D2_refrac,
+          points_data.virtual_cameras2,
+          points_data.virtual_from_reals2,
+          matches,
+          two_view_geometry_options,
+          false);
+      break;
+    case RelTwoViewMethod::kXiaoHuRefine:
+      two_view_geometry = EstimateRefractiveTwoViewGeometryXiaoHu(
+          points_data.points2D1_refrac,
+          points_data.virtual_cameras1,
+          points_data.virtual_from_reals1,
+          points_data.points2D2_refrac,
+          points_data.virtual_cameras2,
+          points_data.virtual_from_reals2,
+          matches,
+          two_view_geometry_options,
+          true);
+      break;
     default:
       LOG(ERROR) << "Relative two-view method does not exist!";
       break;
@@ -384,8 +410,8 @@ void EvaluateMultipleMethods(colmap::Camera& camera,
                              size_t num_exps,
                              double inlier_ratio,
                              const std::string& output_path) {
-  std::vector<double> noise_levels = {0.0, 0.2, 0.5, 0.8, 1.2, 1.5, 1.8, 2.0};
-  // std::vector<double> noise_levels = {0.0};
+  // std::vector<double> noise_levels = {0.0, 0.2, 0.5, 0.8, 1.2, 1.5, 1.8, 2.0};
+  std::vector<double> noise_levels = {0.0, 0.2, 0.5, 0.8, 1.0};
 
   std::ofstream file(output_path, std::ios::out);
 
@@ -414,8 +440,7 @@ void EvaluateMultipleMethods(colmap::Camera& camera,
       datasets.push_back(points_data);
     }
 
-    std::vector<RelTwoViewMethod> methods = {RelTwoViewMethod::kNonRefrac,
-                                             RelTwoViewMethod::kBestFit};
+    std::vector<RelTwoViewMethod> methods = {RelTwoViewMethod::kXiaoHu};
 
     // std::vector<RelTwoViewMethod> methods = {RelTwoViewMethod::kNonRefrac,
     //                                          RelTwoViewMethod::kBestFitRefine};
@@ -712,9 +737,9 @@ TwoViewGeometry XiaoHuInit(const Camera& camera,
 
 void EvaluateXiaoHu(const Camera& camera) {
   // Create a random GT pose.
-  const double tx = colmap::RandomUniformReal(8.0, 10.0);
-  const double ty = colmap::RandomUniformReal(-2.5, 2.5);
-  const double tz = colmap::RandomUniformReal(-2.5, 2.5);
+  const double tx = colmap::RandomUniformReal(0.5, 2.5);
+  const double ty = colmap::RandomUniformReal(-0.5, 0.5);
+  const double tz = colmap::RandomUniformReal(-0.5, 0.5);
   const double distance = colmap::RandomUniformReal(6.0, 8.0);
   Eigen::Vector3d proj_center(tx, ty, tz);
 
@@ -722,9 +747,53 @@ void EvaluateXiaoHu(const Camera& camera) {
 
   GenerateRandomSecondViewPose(proj_center, distance, cam2_from_cam1);
   PointsData points_data;
-  GenerateRandom2D2DPoints(camera, 100, cam2_from_cam1, points_data, 0.5, 1.0);
+  GenerateRandom2D2DPoints(camera, 100, cam2_from_cam1, points_data, 0, 1.0);
 
-  TwoViewGeometry geometry = XiaoHuInit(camera, points_data);
+  // Extract corresponding points.
+  const size_t kNumPoints = points_data.points2D1_refrac.size();
+
+  std::vector<RefracRelPoseEstimator::X_t> points1(kNumPoints);
+  std::vector<RefracRelPoseEstimator::Y_t> points2(kNumPoints);
+
+  for (size_t i = 0; i < kNumPoints; ++i) {
+    points1[i].virtual_from_real = points_data.virtual_from_reals1[i];
+    points1[i].ray_in_virtual = points_data.virtual_cameras1[i]
+                                    .CamFromImg(points_data.points2D1_refrac[i])
+                                    .homogeneous()
+                                    .normalized();
+
+    points2[i].virtual_from_real = points_data.virtual_from_reals2[i];
+    points2[i].ray_in_virtual = points_data.virtual_cameras2[i]
+                                    .CamFromImg(points_data.points2D2_refrac[i])
+                                    .homogeneous()
+                                    .normalized();
+  }
+
+  TwoViewGeometry geometry;
+
+  std::vector<Rigid3d> sols;
+  RefracRelPoseEstimator::Estimate(points1, points2, &sols);
+  geometry.cam2_from_cam1 = sols[0];
+
+  // for (size_t i = 0; i < points1.size(); ++i) {
+  //   points1[i].cam_from_rig =
+  //       points_data.virtual_from_reals1[points_data.points2D1_ref];
+  //   matched_points1[i].ray_in_cam =
+  //       virtual_cameras1[matches[i].point2D_idx1]
+  //           .CamFromImg(points1[matches[i].point2D_idx1])
+  //           .homogeneous()
+  //           .normalized();
+
+  //   matched_points2[i].cam_from_rig =
+  //       virtual_from_reals2[matches[i].point2D_idx2];
+  //   matched_points2[i].ray_in_cam =
+  //       virtual_cameras2[matches[i].point2D_idx2]
+  //           .CamFromImg(points2[matches[i].point2D_idx2])
+  //           .homogeneous()
+  //           .normalized();
+  // }
+
+  // TwoViewGeometry geometry = XiaoHuInit(camera, points_data);
 
   LOG(INFO) << "GT  : "
             << points_data.cam2_from_cam1_gt.rotation.coeffs().transpose()
@@ -755,7 +824,7 @@ int main(int argc, char* argv[]) {
   camera.width = 1113;
   camera.height = 835;
   camera.model_id = CameraModelId::kPinhole;
-  std::vector<double> params = {400.5, 400.5, 556.5, 417.5};
+  std::vector<double> params = {500.5, 500.5, 556.5, 417.5};
   camera.params = params;
 
   // Flatport setup.
@@ -765,8 +834,8 @@ int main(int argc, char* argv[]) {
   int_normal[1] = RandomUniformReal(-0.1, 0.1);
   int_normal[2] = RandomUniformReal(0.9, 1.1);
 
-  int_normal = Eigen::Vector3d::UnitZ();
-  // int_normal.normalize();
+  // int_normal = Eigen::Vector3d::UnitZ();
+  int_normal.normalize();
 
   std::vector<double> flatport_params = {int_normal[0],
                                          int_normal[1],
@@ -784,9 +853,9 @@ int main(int argc, char* argv[]) {
   // // decentering[1] = RandomUniformReal(-0.001, 0.001);
   // // decentering[2] = RandomUniformReal(-0.002, 0.002);
 
-  // decentering[0] = 0;
-  // decentering[1] = 0;
-  // decentering[2] = 0;
+  // decentering[0] = 0.0;
+  // decentering[1] = 0.0;
+  // decentering[2] = 0.03;
 
   // std::vector<double> domeport_params = {decentering[0],
   //                                        decentering[1],
@@ -812,8 +881,8 @@ int main(int argc, char* argv[]) {
      << num_points << "_inlier_ratio_" << inlier_ratio << ".txt";
   std::string output_path = ss.str();
 
-  EvaluateXiaoHu(camera);
-  // EvaluateMultipleMethods(camera, num_points, 10, inlier_ratio, output_path);
+  // EvaluateXiaoHu(camera);
+  EvaluateMultipleMethods(camera, num_points, 10, inlier_ratio, output_path);
 
   return true;
 }

@@ -34,6 +34,7 @@
 #include "colmap/estimators/fundamental_matrix.h"
 #include "colmap/estimators/generalized_relative_pose.h"
 #include "colmap/estimators/homography_matrix.h"
+#include "colmap/estimators/refrac_relative_pose.h"
 #include "colmap/estimators/translation_transform.h"
 #include "colmap/geometry/essential_matrix.h"
 #include "colmap/geometry/homography_matrix.h"
@@ -1005,6 +1006,180 @@ TwoViewGeometry EstimateRefractiveTwoViewGeometryUseBestFit(
       geometry.config = TwoViewGeometry::DEGENERATE;
       return geometry;
     };
+  }
+  return geometry;
+}
+
+TwoViewGeometry EstimateRefractiveTwoViewGeometryXiaoHu(
+    const std::vector<Eigen::Vector2d>& points1,
+    const std::vector<Camera>& virtual_cameras1,
+    const std::vector<Rigid3d>& virtual_from_reals1,
+    const std::vector<Eigen::Vector2d>& points2,
+    const std::vector<Camera>& virtual_cameras2,
+    const std::vector<Rigid3d>& virtual_from_reals2,
+    const FeatureMatches& matches,
+    const TwoViewGeometryOptions& options,
+    const bool refine) {
+  TwoViewGeometry geometry;
+
+  const size_t min_num_inliers = static_cast<size_t>(options.min_num_inliers);
+  if (matches.size() < min_num_inliers) {
+    geometry.config = TwoViewGeometry::ConfigurationType::DEGENERATE;
+    return geometry;
+  }
+
+  // Extract corresponding points.
+  std::vector<RefracRelPoseEstimator::X_t> matched_points1(matches.size());
+  std::vector<RefracRelPoseEstimator::Y_t> matched_points2(matches.size());
+  for (size_t i = 0; i < matches.size(); ++i) {
+    matched_points1[i].virtual_from_real =
+        virtual_from_reals1[matches[i].point2D_idx1];
+    matched_points1[i].ray_in_virtual =
+        virtual_cameras1[matches[i].point2D_idx1]
+            .CamFromImg(points1[matches[i].point2D_idx1])
+            .homogeneous()
+            .normalized();
+
+    matched_points2[i].virtual_from_real =
+        virtual_from_reals2[matches[i].point2D_idx2];
+    matched_points2[i].ray_in_virtual =
+        virtual_cameras2[matches[i].point2D_idx2]
+            .CamFromImg(points2[matches[i].point2D_idx2])
+            .homogeneous()
+            .normalized();
+  }
+
+  RANSACOptions ransac_options_copy = options.ransac_options;
+  // Give it more iterations for RANSAC.
+  // ransac_options_copy.max_num_trials *= 10;
+  ransac_options_copy.max_error =
+      (virtual_cameras1[0].CamFromImgThreshold(ransac_options_copy.max_error) +
+       virtual_cameras2[0].CamFromImgThreshold(ransac_options_copy.max_error)) /
+      2;
+  LORANSAC<RefracRelPoseEstimator, RefracRelPoseEstimator> ransac(
+      ransac_options_copy);
+  const auto report = ransac.Estimate(matched_points1, matched_points2);
+  geometry.cam2_from_cam1 = report.model;
+
+  if (!report.success || report.support.num_inliers < min_num_inliers) {
+    geometry.config = TwoViewGeometry::ConfigurationType::DEGENERATE;
+    return geometry;
+  } else {
+    geometry.config = TwoViewGeometry::ConfigurationType::REFRACTIVE;
+  }
+
+  // Generalized relative pose estimator outputs directly cam2_from_cam1.
+  geometry.inlier_matches = ExtractInlierMatches(
+      matches, report.support.num_inliers, report.inlier_mask);
+
+  if (options.compute_relative_pose) {
+    // Extract tri_angle after estimating the two-view geometry.
+    std::vector<double> tri_angles;
+
+    std::vector<Eigen::Vector2d> inlier_points1_normalized;
+    std::vector<Eigen::Vector2d> inlier_points2_normalized;
+
+    std::vector<Eigen::Matrix3x4d> inlier_virtual_proj_matrix1;
+    std::vector<Eigen::Matrix3x4d> inlier_virtual_proj_matrix2;
+
+    std::vector<Rigid3d> inlier_virtual_from_reals1;
+    std::vector<Rigid3d> inlier_virtual_from_reals2;
+
+    inlier_points1_normalized.reserve(geometry.inlier_matches.size());
+    inlier_points2_normalized.reserve(geometry.inlier_matches.size());
+
+    inlier_virtual_proj_matrix1.reserve(geometry.inlier_matches.size());
+    inlier_virtual_proj_matrix2.reserve(geometry.inlier_matches.size());
+
+    inlier_virtual_from_reals1.reserve(geometry.inlier_matches.size());
+    inlier_virtual_from_reals2.reserve(geometry.inlier_matches.size());
+
+    const Rigid3d real1_from_world;
+    const Rigid3d real2_from_world = geometry.cam2_from_cam1;
+
+    for (const auto& match : geometry.inlier_matches) {
+      const Camera& virtual_camera1 = virtual_cameras1[match.point2D_idx1];
+      const Camera& virtual_camera2 = virtual_cameras2[match.point2D_idx2];
+
+      inlier_points1_normalized.push_back(
+          virtual_camera1.CamFromImg(points1[match.point2D_idx1]));
+      inlier_points2_normalized.push_back(
+          virtual_camera2.CamFromImg(points2[match.point2D_idx2]));
+
+      const Rigid3d virtual1_from_world =
+          virtual_from_reals1[match.point2D_idx1] * real1_from_world;
+      const Rigid3d virtual2_from_world =
+          virtual_from_reals2[match.point2D_idx2] * real2_from_world;
+
+      inlier_virtual_proj_matrix1.push_back(virtual1_from_world.ToMatrix());
+      inlier_virtual_proj_matrix2.push_back(virtual2_from_world.ToMatrix());
+      inlier_virtual_from_reals1.push_back(
+          virtual_from_reals1[match.point2D_idx1]);
+      inlier_virtual_from_reals2.push_back(
+          virtual_from_reals2[match.point2D_idx2]);
+    }
+
+    if (refine) {
+      if (!RefineRefractiveTwoViewGeometry(inlier_points1_normalized,
+                                           inlier_virtual_from_reals1,
+                                           inlier_points2_normalized,
+                                           inlier_virtual_from_reals2,
+                                           &geometry.cam2_from_cam1)) {
+        // Optimization failed, directly return and clean up the inlier matches.
+        geometry.inlier_matches.clear();
+        geometry.config = TwoViewGeometry::ConfigurationType::DEGENERATE;
+        return geometry;
+      };
+    }
+
+    const double kMinDepth = std::numeric_limits<double>::epsilon();
+
+    auto CalculateDepth = [](const Eigen::Matrix3x4d& cam_from_world,
+                             const Eigen::Vector3d& point3D) {
+      const double proj_z = cam_from_world.row(2).dot(point3D.homogeneous());
+      return proj_z * cam_from_world.col(2).norm();
+    };
+
+    for (size_t i = 0; i < geometry.inlier_matches.size(); ++i) {
+      const double max_depth =
+          1000.0f *
+          (inlier_virtual_proj_matrix2[i].block<3, 3>(0, 0).transpose() *
+           inlier_virtual_proj_matrix2[i].col(3))
+              .norm();
+      const Eigen::Vector3d point3D =
+          TriangulatePoint(inlier_virtual_proj_matrix1[i],
+                           inlier_virtual_proj_matrix2[i],
+                           inlier_points1_normalized[i],
+                           inlier_points2_normalized[i]);
+
+      const double depth1 =
+          CalculateDepth(inlier_virtual_proj_matrix1[i], point3D);
+
+      if (depth1 > kMinDepth && depth1 < max_depth) {
+        const double depth2 =
+            CalculateDepth(inlier_virtual_proj_matrix2[i], point3D);
+        if (depth2 > kMinDepth && depth2 < max_depth) {
+          const Eigen::Vector3d proj_center1 =
+              -inlier_virtual_proj_matrix1[i].block<3, 3>(0, 0).transpose() *
+              inlier_virtual_proj_matrix1[i].col(3);
+          const Eigen::Vector3d proj_center2 =
+              -inlier_virtual_proj_matrix2[i].block<3, 3>(0, 0).transpose() *
+              inlier_virtual_proj_matrix2[i].col(3);
+          tri_angles.push_back(
+              CalculateTriangulationAngle(proj_center1, proj_center2, point3D));
+        }
+      }
+    }
+
+    if (tri_angles.size() < min_num_inliers) {
+      geometry.tri_angle = 0;
+      LOG(WARNING)
+          << "Found sufficient amount of inliers, but `tri_angle` "
+             "cannot be computed as points may not have positive depths"
+          << std::endl;
+    } else {
+      geometry.tri_angle = Median(tri_angles);
+    }
   }
   return geometry;
 }
