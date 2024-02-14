@@ -236,6 +236,45 @@ void Evaluate(Camera& camera,
 
     std::cout << "Generating random data ..." << std::endl;
     for (size_t i = 0; i < num_exps; i++) {
+      // Flatport setup
+      // camera.refrac_model_id = CameraRefracModelId::kFlatPort;
+      // Eigen::Vector3d int_normal;
+      // int_normal[0] = RandomUniformReal(-0.2, 0.2);
+      // int_normal[1] = RandomUniformReal(-0.2, 0.2);
+      // int_normal[2] = RandomUniformReal(0.8, 1.2);
+
+      // int_normal.normalize();
+      // // int_normal = Eigen::Vector3d::UnitZ();
+      // std::vector<double> flatport_params = {
+      //     int_normal[0],
+      //     int_normal[1],
+      //     int_normal[2],
+      //     colmap::RandomUniformReal(0.001, 0.05),
+      //     colmap::RandomUniformReal(0.002, 0.2),
+      //     1.0,
+      //     1.52,
+      //     1.334};
+      // camera.refrac_params = flatport_params;
+
+      camera.refrac_model_id = CameraRefracModelId::kDomePort;
+      Eigen::Vector3d decentering;
+      // decentering[0] = RandomUniformReal(-0.01, 0.01);
+      // decentering[1] = RandomUniformReal(-0.01, 0.01);
+      // decentering[2] = RandomUniformReal(-0.03, 0.03);
+      decentering[0] = 0.0;
+      decentering[1] = 0.0;
+      decentering[2] = 0.0;
+
+      std::vector<double> domeport_params = {
+          decentering[0],
+          decentering[1],
+          decentering[2],
+          colmap::RandomUniformReal(0.05, 0.07),
+          colmap::RandomUniformReal(0.005, 0.02),
+          1.0,
+          1.52,
+          1.334};
+      camera.refrac_params = domeport_params;
       // Create a random GT pose.
       const double qx = RandomUniformReal(0.0, 1.0);
       const double tx = RandomUniformReal(0.0, 1.0);
@@ -371,7 +410,7 @@ int main(int argc, char* argv[]) {
   camera.params = params;
 
   // Flatport setup.
-  // camera.SetRefracModelIdFromName("FLATPORT");
+  // camera.refrac_model_id = CameraRefracModelId::kFlatPort;
   // Eigen::Vector3d int_normal;
   // int_normal[0] = RandomUniformReal(-0.1, 0.1);
   // int_normal[1] = RandomUniformReal(-0.1, 0.1);
@@ -387,24 +426,24 @@ int main(int argc, char* argv[]) {
   //                                        1.0,
   //                                        1.52,
   //                                        1.334};
-  // camera.SetRefracParams(flatport_params);
+  // camera.refrac_params = flatport_params;
 
   // Domeport setup.
-  camera.refrac_model_id = CameraRefracModelId::kDomePort;
-  Eigen::Vector3d decentering;
-  decentering[0] = RandomUniformReal(-0.008, 0.008);
-  decentering[1] = RandomUniformReal(-0.008, 0.008);
-  decentering[2] = RandomUniformReal(-0.03, 0.03);
+  // camera.refrac_model_id = CameraRefracModelId::kDomePort;
+  // Eigen::Vector3d decentering;
+  // decentering[0] = RandomUniformReal(-0.008, 0.008);
+  // decentering[1] = RandomUniformReal(-0.008, 0.008);
+  // decentering[2] = RandomUniformReal(-0.03, 0.03);
 
-  std::vector<double> domeport_params = {decentering[0],
-                                         decentering[1],
-                                         decentering[2],
-                                         0.05,
-                                         0.007,
-                                         1.0,
-                                         1.52,
-                                         1.334};
-  camera.refrac_params = domeport_params;
+  // std::vector<double> domeport_params = {decentering[0],
+  //                                        decentering[1],
+  //                                        decentering[2],
+  //                                        0.05,
+  //                                        0.007,
+  //                                        1.0,
+  //                                        1.52,
+  //                                        1.334};
+  // camera.refrac_params = domeport_params;
 
   // Generate simulated point data.
   const size_t num_points = 200;
@@ -414,7 +453,7 @@ int main(int argc, char* argv[]) {
       "/home/mshe/workspace/omv_src/colmap-project/refrac_sfm_eval/plots/"
       "abs_pose/";
   std::stringstream ss;
-  ss << output_dir << "/abs_pose_dome_large_num_points_" << num_points
+  ss << output_dir << "/dome_perfect_center_random_num_points_" << num_points
      << "_inlier_ratio_" << inlier_ratio << ".txt";
   std::string output_path = ss.str();
 

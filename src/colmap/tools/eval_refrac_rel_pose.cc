@@ -37,14 +37,12 @@ struct PointsData {
 
 enum class RelTwoViewMethod {
   kNonRefrac = -1,
-  kIgnore = 0,
-  kIgnoreRefine = 1,
+  kXiaoHu = 0,
+  kXiaoHuRefine = 1,
   kGR6P = 2,
   kGR6PRefine = 3,
   kBestFit = 4,
   kBestFitRefine = 5,
-  kXiaoHu = 6,
-  kXiaoHuRefine = 7,
 };
 
 void GenerateRandomSecondViewPose(const Eigen::Vector3d& proj_center,
@@ -307,36 +305,36 @@ size_t EstimateRelativePose(Camera& camera,
           two_view_geometry_options,
           true);
       break;
-    case RelTwoViewMethod::kIgnore:
-      two_view_geometry = EstimateRefractiveTwoViewIgnoreRefraction(
-          camera,
-          points_data.points2D1_refrac,
-          points_data.virtual_cameras1,
-          points_data.virtual_from_reals1,
-          camera,
-          points_data.points2D2_refrac,
-          points_data.virtual_cameras2,
-          points_data.virtual_from_reals2,
-          matches,
-          two_view_geometry_options,
-          false);
-      break;
-    case RelTwoViewMethod::kIgnoreRefine:
-      two_view_geometry = EstimateRefractiveTwoViewIgnoreRefraction(
-          camera,
-          points_data.points2D1_refrac,
-          points_data.virtual_cameras1,
-          points_data.virtual_from_reals1,
-          camera,
-          points_data.points2D2_refrac,
-          points_data.virtual_cameras2,
-          points_data.virtual_from_reals2,
-          matches,
-          two_view_geometry_options,
-          true);
-      break;
+    // case RelTwoViewMethod::kIgnore:
+    //   two_view_geometry = EstimateRefractiveTwoViewIgnoreRefraction(
+    //       camera,
+    //       points_data.points2D1_refrac,
+    //       points_data.virtual_cameras1,
+    //       points_data.virtual_from_reals1,
+    //       camera,
+    //       points_data.points2D2_refrac,
+    //       points_data.virtual_cameras2,
+    //       points_data.virtual_from_reals2,
+    //       matches,
+    //       two_view_geometry_options,
+    //       false);
+    //   break;
+    // case RelTwoViewMethod::kIgnoreRefine:
+    //   two_view_geometry = EstimateRefractiveTwoViewIgnoreRefraction(
+    //       camera,
+    //       points_data.points2D1_refrac,
+    //       points_data.virtual_cameras1,
+    //       points_data.virtual_from_reals1,
+    //       camera,
+    //       points_data.points2D2_refrac,
+    //       points_data.virtual_cameras2,
+    //       points_data.virtual_from_reals2,
+    //       matches,
+    //       two_view_geometry_options,
+    //       true);
+    //   break;
     case RelTwoViewMethod::kXiaoHu:
-      two_view_geometry = EstimateRefractiveTwoViewGeometryXiaoHu(
+      two_view_geometry = EstimateRefractiveTwoViewGeometryHu(
           points_data.points2D1_refrac,
           points_data.virtual_cameras1,
           points_data.virtual_from_reals1,
@@ -348,7 +346,7 @@ size_t EstimateRelativePose(Camera& camera,
           false);
       break;
     case RelTwoViewMethod::kXiaoHuRefine:
-      two_view_geometry = EstimateRefractiveTwoViewGeometryXiaoHu(
+      two_view_geometry = EstimateRefractiveTwoViewGeometryHu(
           points_data.points2D1_refrac,
           points_data.virtual_cameras1,
           points_data.virtual_from_reals1,
@@ -410,8 +408,9 @@ void EvaluateMultipleMethods(colmap::Camera& camera,
                              size_t num_exps,
                              double inlier_ratio,
                              const std::string& output_path) {
-  // std::vector<double> noise_levels = {0.0, 0.2, 0.5, 0.8, 1.2, 1.5, 1.8, 2.0};
-  std::vector<double> noise_levels = {0.0, 0.2, 0.5, 0.8, 1.0};
+  std::vector<double> noise_levels = {0.0, 0.2, 0.5,
+  0.8, 1.2, 1.5, 1.8, 2.0};
+  // std::vector<double> noise_levels = {0.001, 0.002, 0.003, 0.004, 0.005};
 
   std::ofstream file(output_path, std::ios::out);
 
@@ -440,7 +439,11 @@ void EvaluateMultipleMethods(colmap::Camera& camera,
       datasets.push_back(points_data);
     }
 
-    std::vector<RelTwoViewMethod> methods = {RelTwoViewMethod::kXiaoHu};
+    std::vector<RelTwoViewMethod> methods = {RelTwoViewMethod::kNonRefrac,
+                                             RelTwoViewMethod::kXiaoHu,
+                                             RelTwoViewMethod::kXiaoHuRefine,
+                                             RelTwoViewMethod::kBestFit,
+                                             RelTwoViewMethod::kBestFitRefine};
 
     // std::vector<RelTwoViewMethod> methods = {RelTwoViewMethod::kNonRefrac,
     //                                          RelTwoViewMethod::kBestFitRefine};
@@ -821,10 +824,10 @@ int main(int argc, char* argv[]) {
   //                               0,
   //                               0};
   Camera camera;
-  camera.width = 1113;
-  camera.height = 835;
+  camera.width = 1920;
+  camera.height = 1080;
   camera.model_id = CameraModelId::kPinhole;
-  std::vector<double> params = {500.5, 500.5, 556.5, 417.5};
+  std::vector<double> params = {1297.3655404279762, 1297.3655404279762, 960.0, 540.0};
   camera.params = params;
 
   // Flatport setup.
