@@ -379,12 +379,6 @@ void HybridMapper::GlobalPoseGraphOptim(const Options& options) {
     }
   }
 
-  // DEBUG mode: write out the stats of pose graph relative constraints.
-  std::unordered_map<image_pair_t, size_t> pgo_rel_stats;
-  // for(const auto& image_pair: image_pair_stats_){
-  //   pgo_rel_stats.emplace(image_pair.first, 0);
-  // }
-
   for (const auto recon : sub_recons) {
     for (const auto& image_pair : upgraded_image_pair_stats_) {
       image_t image_id1;
@@ -408,32 +402,8 @@ void HybridMapper::GlobalPoseGraphOptim(const Options& options) {
                                 information * options.pgo_rel_pose_multi,
                                 nullptr);
       num_rel++;
-      if (pgo_rel_stats.count(image_pair.first) == 0) {
-        pgo_rel_stats.emplace(std::make_pair(image_pair.first, 1));
-      } else {
-        pgo_rel_stats.at(image_pair.first) += 1;
-      }
     }
   }
-
-  LOG(INFO) << "Saving pgo rel stats to files";
-  std::ofstream file("pgo_rel_stats.txt", std::ios_base::out);
-
-  file << reconstruction_->Images().size() << std::endl;
-  for (const auto& image_it : reconstruction_->Images()) {
-    const Eigen::Vector3d& position = image_it.second.ProjectionCenter();
-    file << image_it.first << " " << position[0] << " " << -position[1]
-         << std::endl;
-  }
-  file << pgo_rel_stats.size() << std::endl;
-  for (const auto& image_pair : pgo_rel_stats) {
-    image_t image_id1;
-    image_t image_id2;
-    Database::PairIdToImagePair(image_pair.first, &image_id1, &image_id2);
-    file << image_id1 << " " << image_id2 << " " << image_pair.second
-         << std::endl;
-  }
-  file.close();
 
   const std::vector<image_t>& reg_image_ids = reconstruction_->RegImageIds();
   const Rigid3d cam_from_prior = Inverse(reconstruction_->PriorFromCam());
@@ -678,45 +648,6 @@ void HybridMapper::PrintViewGraphStats() const {
   LOG(INFO) << "View-graph completeness ratio: "
             << static_cast<double>(upgraded_image_pair_stats_.size()) /
                    static_cast<double>(image_pair_stats_.size());
-
-  // Temporary thing:
-  // Save view graph stats in a file.
-  LOG(INFO) << "Saving view graph stats to files";
-  std::ofstream file("image_pair_stats.txt", std::ios_base::out);
-
-  file << reconstruction_->Images().size() << std::endl;
-  for (const auto& image_it : reconstruction_->Images()) {
-    const Eigen::Vector3d& position = image_it.second.ProjectionCenter();
-    file << image_it.first << " " << position[0] << " " << -position[1]
-         << std::endl;
-  }
-  file << image_pair_stats_.size() << std::endl;
-  for (const auto& image_pair : image_pair_stats_) {
-    image_t image_id1;
-    image_t image_id2;
-    Database::PairIdToImagePair(image_pair.first, &image_id1, &image_id2);
-    file << image_id1 << " " << image_id2 << " " << image_pair.second
-         << std::endl;
-  }
-  file.close();
-
-  file.open("upgraded_image_pair_stats.txt", std::ios_base::out);
-
-  file << reconstruction_->Images().size() << std::endl;
-  for (const auto& image_it : reconstruction_->Images()) {
-    const Eigen::Vector3d& position = image_it.second.ProjectionCenter();
-    file << image_it.first << " " << position[0] << " " << -position[1]
-         << std::endl;
-  }
-  file << upgraded_image_pair_stats_.size() << std::endl;
-  for (const auto& image_pair : upgraded_image_pair_stats_) {
-    image_t image_id1;
-    image_t image_id2;
-    Database::PairIdToImagePair(image_pair.first, &image_id1, &image_id2);
-    file << image_id1 << " " << image_id2 << " " << image_pair.second
-         << std::endl;
-  }
-  file.close();
 }
 
 void HybridMapper::ReconstructCluster(

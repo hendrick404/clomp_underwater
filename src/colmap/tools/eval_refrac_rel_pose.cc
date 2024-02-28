@@ -163,70 +163,11 @@ void GenerateRandom2D2DPoints(const Camera& camera,
       BestFitNonRefracCamera(CameraModelId::kOpenCV, camera, kApproxDepth);
 }
 
-TwoViewGeometry EstimateRefractiveTwoViewIgnoreRefraction(
-    const Camera& camera1,
-    const std::vector<Eigen::Vector2d>& points1,
-    const std::vector<Camera>& virtual_cameras1,
-    const std::vector<Rigid3d>& virtual_from_reals1,
-    const Camera& camera2,
-    const std::vector<Eigen::Vector2d>& points2,
-    const std::vector<Camera>& virtual_cameras2,
-    const std::vector<Rigid3d>& virtual_from_reals2,
-    const FeatureMatches& matches,
-    const TwoViewGeometryOptions& options,
-    bool refine = false) {
-  // Perform essential matrix estimation
-  TwoViewGeometry geometry = EstimateCalibratedTwoViewGeometry(
-      camera1, points1, camera2, points2, matches, options);
-
-  if (refine) {
-    // Perform refinement afterwards:
-    std::vector<Eigen::Vector2d> inlier_points1_normalized;
-    std::vector<Eigen::Vector2d> inlier_points2_normalized;
-
-    std::vector<Rigid3d> inlier_virtual_from_reals1;
-    std::vector<Rigid3d> inlier_virtual_from_reals2;
-
-    inlier_points1_normalized.reserve(geometry.inlier_matches.size());
-    inlier_points2_normalized.reserve(geometry.inlier_matches.size());
-
-    inlier_virtual_from_reals1.reserve(geometry.inlier_matches.size());
-    inlier_virtual_from_reals2.reserve(geometry.inlier_matches.size());
-
-    for (const auto& match : geometry.inlier_matches) {
-      const Camera& virtual_camera1 = virtual_cameras1[match.point2D_idx1];
-      const Camera& virtual_camera2 = virtual_cameras2[match.point2D_idx2];
-
-      inlier_points1_normalized.push_back(
-          virtual_camera1.CamFromImg(points1[match.point2D_idx1]));
-      inlier_points2_normalized.push_back(
-          virtual_camera2.CamFromImg(points2[match.point2D_idx2]));
-
-      inlier_virtual_from_reals1.push_back(
-          virtual_from_reals1[match.point2D_idx1]);
-      inlier_virtual_from_reals2.push_back(
-          virtual_from_reals2[match.point2D_idx2]);
-    }
-
-    if (!RefineRefractiveTwoViewGeometry(inlier_points1_normalized,
-                                         inlier_virtual_from_reals1,
-                                         inlier_points2_normalized,
-                                         inlier_virtual_from_reals2,
-                                         &geometry.cam2_from_cam1)) {
-      // Optimization failed, directly return and clean up the inlier matches.
-      geometry.inlier_matches.clear();
-      return geometry;
-    };
-  }
-  return geometry;
-}
-
 size_t EstimateRelativePose(Camera& camera,
                             const PointsData& points_data,
                             Rigid3d& cam2_from_cam1,
                             RelTwoViewMethod method_id) {
   size_t num_points = points_data.points2D1.size();
-  size_t num_inliers = 0;
 
   TwoViewGeometryOptions two_view_geometry_options;
   two_view_geometry_options.compute_relative_pose = true;
@@ -306,34 +247,6 @@ size_t EstimateRelativePose(Camera& camera,
           two_view_geometry_options,
           true);
       break;
-    // case RelTwoViewMethod::kIgnore:
-    //   two_view_geometry = EstimateRefractiveTwoViewIgnoreRefraction(
-    //       camera,
-    //       points_data.points2D1_refrac,
-    //       points_data.virtual_cameras1,
-    //       points_data.virtual_from_reals1,
-    //       camera,
-    //       points_data.points2D2_refrac,
-    //       points_data.virtual_cameras2,
-    //       points_data.virtual_from_reals2,
-    //       matches,
-    //       two_view_geometry_options,
-    //       false);
-    //   break;
-    // case RelTwoViewMethod::kIgnoreRefine:
-    //   two_view_geometry = EstimateRefractiveTwoViewIgnoreRefraction(
-    //       camera,
-    //       points_data.points2D1_refrac,
-    //       points_data.virtual_cameras1,
-    //       points_data.virtual_from_reals1,
-    //       camera,
-    //       points_data.points2D2_refrac,
-    //       points_data.virtual_cameras2,
-    //       points_data.virtual_from_reals2,
-    //       matches,
-    //       two_view_geometry_options,
-    //       true);
-    //   break;
     case RelTwoViewMethod::kXiaoHu:
       two_view_geometry =
           EstimateRefractiveTwoViewGeometryHu(points_data.points2D1_refrac,
@@ -394,79 +307,69 @@ void RelativePoseError(const colmap::Rigid3d& cam2_from_cam1_gt,
     cos_theta = 1.0;
   }
   angular_error = RadToDeg(acos(cos_theta));
-  // if (is_refractive) {
-  //   const double baseline_est = (cam2_from_cam1_est.rotation.inverse() *
-  //                                -cam2_from_cam1_est.translation)
-  //                                   .norm();
-  //   const double baseline_gt =
-  //       (cam2_from_cam1_gt.rotation.inverse() *
-  //       -cam2_from_cam1_gt.translation)
-  //           .norm();
-  //   scale_error = (1 - baseline_est / baseline_gt);
-  // } else {
-  //   scale_error = 0.0;
-  // }
 }
 
-void EvaluateMultipleMethods(colmap::Camera& camera,
-                             size_t num_points,
-                             size_t num_exps,
-                             double inlier_ratio,
-                             const std::string& output_path) {
+void Evaluate(colmap::Camera& camera,
+              size_t num_points,
+              size_t num_exps,
+              double inlier_ratio,
+              bool is_flatport,
+              const std::vector<RelTwoViewMethod>& methods,
+              const std::string& output_path) {
   std::vector<double> noise_levels = {0.0, 0.2, 0.5, 0.8, 1.2, 1.5, 1.8, 2.0};
-  // std::vector<double> noise_levels = {0.0, 0.02, 0.05, 0.08, 0.12};
+
+  // These noise levels are used to evaluate XiaoHu and GR6P approaches.
   // std::vector<double> noise_levels = {0, 0.002, 0.005, 0.008, 0.01};
+
   std::ofstream file(output_path, std::ios::out);
 
   for (const double& noise : noise_levels) {
-    std::cout << "Noise level: " << noise << std::endl;
+    LOG(INFO) << "Noise level: " << noise;
 
     // Generate random datasets first.
     std::vector<PointsData> datasets;
     datasets.reserve(num_exps);
 
-    std::cout << "Generating random data ..." << std::endl;
+    LOG(INFO) << "Generating random data ...";
+
     for (size_t i = 0; i < num_exps; i++) {
-      // Flatport setup
-      camera.refrac_model_id = CameraRefracModelId::kFlatPort;
-      Eigen::Vector3d int_normal;
-      int_normal[0] = RandomUniformReal(-0.2, 0.2);
-      int_normal[1] = RandomUniformReal(-0.2, 0.2);
-      int_normal[2] = RandomUniformReal(0.8, 1.2);
+      if (is_flatport) {
+        // Flatport setup
+        camera.refrac_model_id = CameraRefracModelId::kFlatPort;
+        Eigen::Vector3d int_normal;
+        int_normal[0] = RandomUniformReal(-0.2, 0.2);
+        int_normal[1] = RandomUniformReal(-0.2, 0.2);
+        int_normal[2] = RandomUniformReal(0.8, 1.2);
+        int_normal.normalize();
 
-      int_normal.normalize();
-      // int_normal = Eigen::Vector3d::UnitZ();
-      std::vector<double> flatport_params = {
-          int_normal[0],
-          int_normal[1],
-          int_normal[2],
-          colmap::RandomUniformReal(0.001, 0.05),
-          colmap::RandomUniformReal(0.002, 0.2),
-          1.0,
-          1.52,
-          1.334};
-      camera.refrac_params = flatport_params;
+        std::vector<double> flatport_params = {
+            int_normal[0],
+            int_normal[1],
+            int_normal[2],
+            colmap::RandomUniformReal(0.001, 0.05),
+            colmap::RandomUniformReal(0.002, 0.2),
+            1.0,
+            1.52,
+            1.334};
+        camera.refrac_params = flatport_params;
+      } else {
+        camera.refrac_model_id = CameraRefracModelId::kDomePort;
+        Eigen::Vector3d decentering;
+        decentering[0] = RandomUniformReal(-0.01, 0.01);
+        decentering[1] = RandomUniformReal(-0.01, 0.01);
+        decentering[2] = RandomUniformReal(-0.03, 0.03);
 
-      // camera.refrac_model_id = CameraRefracModelId::kDomePort;
-      // Eigen::Vector3d decentering;
-      // // decentering[0] = RandomUniformReal(-0.01, 0.01);
-      // // decentering[1] = RandomUniformReal(-0.01, 0.01);
-      // // decentering[2] = RandomUniformReal(-0.03, 0.03);
-      // decentering[0] = 0.0;
-      // decentering[1] = 0.0;
-      // decentering[2] = 0.0;
-
-      // std::vector<double> domeport_params = {
-      //     decentering[0],
-      //     decentering[1],
-      //     decentering[2],
-      //     colmap::RandomUniformReal(0.05, 0.07),
-      //     colmap::RandomUniformReal(0.005, 0.02),
-      //     1.0,
-      //     1.52,
-      //     1.334};
-      // camera.refrac_params = domeport_params;
-
+        std::vector<double> domeport_params = {
+            decentering[0],
+            decentering[1],
+            decentering[2],
+            colmap::RandomUniformReal(0.05, 0.07),
+            colmap::RandomUniformReal(0.005, 0.02),
+            1.0,
+            1.52,
+            1.334};
+        camera.refrac_params = domeport_params;
+      }
       // Create a random GT pose.
       const double tx = colmap::RandomUniformReal(8.0, 10.0);
       const double ty = colmap::RandomUniformReal(-2.5, 2.5);
@@ -482,14 +385,6 @@ void EvaluateMultipleMethods(colmap::Camera& camera,
           camera, num_points, cam2_from_cam1, points_data, noise, inlier_ratio);
       datasets.push_back(points_data);
     }
-
-    std::vector<RelTwoViewMethod> methods = {RelTwoViewMethod::kNonRefrac,
-                                             RelTwoViewMethod::kBestFit,
-                                             RelTwoViewMethod::kBestFitRefine};
-    // RelTwoViewMethod::kBestFit};
-
-    // std::vector<RelTwoViewMethod> methods = {RelTwoViewMethod::kNonRefrac,
-    //                                          RelTwoViewMethod::kBestFitRefine};
 
     // Evaluate random dataset.
     // Errors of all methods:
@@ -508,13 +403,8 @@ void EvaluateMultipleMethods(colmap::Camera& camera,
       // Inlier ratio.
       std::vector<double> inlier_ratios;
 
-      double time = 0.0;
+      LOG(INFO) << "Evaluating Method: " << static_cast<int>(method_id);
 
-      std::cout << "Evaluating Method: " << static_cast<int>(method_id)
-                << std::endl;
-
-      Timer timer;
-      timer.Start();
       for (size_t i = 0; i < num_exps; i++) {
         const PointsData& points_data = datasets[i];
         colmap::Rigid3d cam2_from_cam1_est;
@@ -532,9 +422,6 @@ void EvaluateMultipleMethods(colmap::Camera& camera,
                                   static_cast<double>(num_points));
         }
       }
-      timer.Pause();
-      time = timer.ElapsedSeconds();
-
       const double rot_error_mean = Mean(rotation_errors);
       const double rot_error_std = StdDev(rotation_errors);
       const double ang_error_mean = Mean(angular_errors);
@@ -547,11 +434,11 @@ void EvaluateMultipleMethods(colmap::Camera& camera,
       ang_error_std_all_methods.push_back(ang_error_std);
       inlier_ratio_all_methods.push_back(inlier_ratio_mean);
 
-      std::cout << "Relative pose error : Rotation: " << rot_error_mean
+      LOG(INFO) << "Relative pose error : Rotation: " << rot_error_mean
                 << " +/- " << rot_error_std << " -- Angular: " << ang_error_mean
                 << " +/- " << ang_error_std
                 << " -- inlier ratio: " << inlier_ratio_mean
-                << " GT inlier ratio: " << inlier_ratio << std::endl;
+                << " GT inlier ratio: " << inlier_ratio;
     }
 
     file << noise;
@@ -568,286 +455,6 @@ void EvaluateMultipleMethods(colmap::Camera& camera,
   file.close();
 }
 
-/// Xiaohu's relative pose init ///
-
-namespace {
-// method for calculating the pseudo-Inverse as recommended by Eigen developers
-template <typename _Matrix_Type_>
-_Matrix_Type_ pseudoInverse(
-    const _Matrix_Type_& a,
-    double epsilon = std::numeric_limits<double>::epsilon()) {
-  Eigen::JacobiSVD<_Matrix_Type_> svd(
-      a, Eigen::ComputeFullU | Eigen::ComputeFullV);
-  // For a non-square matrix
-  // Eigen::JacobiSVD< _Matrix_Type_ > svd(a ,Eigen::ComputeThinU |
-  // Eigen::ComputeThinV);
-  double tolerance = epsilon * std::max(a.cols(), a.rows()) *
-                     svd.singularValues().array().abs()(0);
-  return svd.matrixV() *
-         (svd.singularValues().array().abs() > tolerance)
-             .select(svd.singularValues().array().inverse(), 0)
-             .matrix()
-             .asDiagonal() *
-         svd.matrixU().adjoint();
-}
-}  // namespace
-
-TwoViewGeometry XiaoHuInit(const Camera& camera,
-                           const PointsData& points_data) {
-  LOG(INFO) << "Evaluating XiaoHu's approach";
-
-  TwoViewGeometry two_view_geometry;
-
-  /// prepare the rays.
-  const size_t kNumPoints = points_data.points2D1_refrac.size();
-
-  std::vector<colmap::Ray3D> rays1;
-  std::vector<colmap::Ray3D> rays2;
-
-  rays1.reserve(kNumPoints);
-  rays2.reserve(kNumPoints);
-
-  for (const auto& point : points_data.points2D1_refrac) {
-    rays1.push_back(camera.CamFromImgRefrac(point));
-  }
-  for (const auto& point : points_data.points2D2_refrac) {
-    rays2.push_back(camera.CamFromImgRefrac(point));
-  }
-
-  // virtual camera centers.
-  std::vector<Eigen::Vector3d> vc1, vc2;
-  vc1.reserve(kNumPoints);
-  vc2.reserve(kNumPoints);
-
-  for (size_t i = 0; i < kNumPoints; ++i) {
-    vc1.push_back(points_data.virtual_from_reals1[i].rotation.inverse() *
-                  -points_data.virtual_from_reals1[i].translation);
-    vc2.push_back(points_data.virtual_from_reals2[i].rotation.inverse() *
-                  -points_data.virtual_from_reals2[i].translation);
-  }
-
-  Eigen::MatrixXd A(kNumPoints, 18);
-  A.setZero();
-
-  for (size_t i = 0; i < kNumPoints; ++i) {
-    Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
-    const Eigen::Vector3d r1 = rays1[i].dir;
-    const Eigen::Matrix<double, 1, 3> r1_t = rays1[i].dir.transpose();
-    const Eigen::Matrix<double, 1, 3> r2_t = rays2[i].dir.transpose();
-
-    const Eigen::Vector3d& cv1 = vc1[i];
-    const Eigen::Vector3d& cv2 = vc2[i];
-    Eigen::Matrix3d cv1_hat = CrossProductMatrix(cv1);
-    Eigen::Matrix3d cv2_hat = CrossProductMatrix(cv2);
-
-    // Compute the first kronecker product.
-    Eigen::KroneckerProduct<Eigen::Matrix<double, 1, 3>,
-                            Eigen::Matrix<double, 3, 3>>
-        kron1 = Eigen::KroneckerProduct<Eigen::Matrix<double, 1, 3>,
-                                        Eigen::Matrix<double, 3, 3>>(r1_t, I);
-
-    // Compute the second kronecker product.
-    Eigen::Matrix<double, 1, 3> cv1_u = (cv1_hat * r1).transpose();
-    Eigen::KroneckerProduct<Eigen::Matrix<double, 1, 3>,
-                            Eigen::Matrix<double, 3, 3>>
-        kron2 = Eigen::KroneckerProduct<Eigen::Matrix<double, 1, 3>,
-                                        Eigen::Matrix<double, 3, 3>>(cv1_u, I);
-
-    A.block<1, 9>(i, 0) = r2_t * cv2_hat * kron1 - r2_t * kron2;
-    A.block<1, 9>(i, 9) = -r2_t * kron1;
-  }
-
-  Eigen::MatrixXd AR = A.block(0, 0, kNumPoints, 9);
-  Eigen::MatrixXd AE = A.block(0, 9, kNumPoints, 9);
-  Eigen::MatrixXd ARpinv = AR.completeOrthogonalDecomposition().pseudoInverse();
-  // Eigen::MatrixXd ARpinv = pseudoInverse(AR);
-  Eigen::MatrixXd eye_N(kNumPoints, kNumPoints);
-  eye_N.setIdentity();
-
-  Eigen::MatrixXd B = (AR * ARpinv - eye_N) * AE;
-  Eigen::JacobiSVD<Eigen::MatrixXd> svd(B, Eigen::ComputeFullV);
-
-  Eigen::MatrixXd sol = svd.matrixV().col(8);
-  const Eigen::Map<const Eigen::Matrix3d> E_raw(sol.data());
-
-  // Enforcing the internal constraint that two singular values must be equal
-  // and one must be zero.
-  Eigen::JacobiSVD<Eigen::Matrix3d> E_raw_svd(
-      E_raw, Eigen::ComputeFullU | Eigen::ComputeFullV);
-  Eigen::Vector3d singular_values = E_raw_svd.singularValues();
-  singular_values(0) = (singular_values(0) + singular_values(1)) / 2.0;
-  singular_values(1) = singular_values(0);
-  singular_values(2) = 0.0;
-  const Eigen::Matrix3d E = E_raw_svd.matrixU() * singular_values.asDiagonal() *
-                            E_raw_svd.matrixV().transpose();
-
-  // Solve kernel part (Basically repeat PoseFromEssentialMatrix, but replace
-  // proj_center by virtual_proj_center).
-  Eigen::Matrix3d R_cam1_from_cam2;
-  Eigen::Vector3d t_cam1_from_cam2;
-  std::vector<Eigen::Vector3d> points3D;
-  Eigen::Matrix3d R1;
-  Eigen::Matrix3d R2;
-  Eigen::Vector3d t;
-  DecomposeEssentialMatrix(E, &R1, &R2, &t);
-  points3D.clear();
-
-  // Generate all possible projection matrix combinations.
-  const std::array<Eigen::Matrix3d, 4> R_cmbs{{R1, R2, R1, R2}};
-  const std::array<Eigen::Vector3d, 4> t_cmbs{{t, t, -t, -t}};
-
-  auto CalculateDepth = [](const Eigen::Matrix3x4d& cam_from_world,
-                           const Eigen::Vector3d& point3D) {
-    const double proj_z = cam_from_world.row(2).dot(point3D.homogeneous());
-    return proj_z * cam_from_world.col(2).norm();
-  };
-
-  for (size_t i = 0; i < R_cmbs.size(); ++i) {
-    std::vector<Eigen::Vector3d> points3D_cmb;
-    // Check cheriality here
-
-    const double kMinDepth = std::numeric_limits<double>::epsilon();
-    const double max_depth =
-        1000.0f * (R_cmbs[i].transpose() * t_cmbs[i]).norm();
-
-    for (size_t j = 0; j < kNumPoints; ++j) {
-      const Rigid3d& virtual_from_real1 = points_data.virtual_from_reals1[j];
-      const Rigid3d& virtual_from_real2 = points_data.virtual_from_reals2[j];
-
-      const Rigid3d world_from_cam2(Eigen::Quaterniond(R_cmbs[i].transpose()),
-                                    t_cmbs[i]);
-      const Rigid3d cam2_from_world = Inverse(world_from_cam2);
-      const Rigid3d virtual2_from_world = virtual_from_real2 * cam2_from_world;
-
-      const Eigen::Matrix3x4d virtual_proj_matrix1 =
-          virtual_from_real1.ToMatrix();
-      const Eigen::Matrix3x4d virtual_proj_matrix2 =
-          virtual2_from_world.ToMatrix();
-
-      const Eigen::Vector3d point3D =
-          TriangulatePoint(virtual_proj_matrix1,
-                           virtual_proj_matrix2,
-                           rays1[j].dir.hnormalized(),
-                           rays2[j].dir.hnormalized());
-
-      const double depth1 = CalculateDepth(virtual_proj_matrix1, point3D);
-      if (depth1 > kMinDepth && depth1 < max_depth) {
-        const double depth2 = CalculateDepth(virtual_proj_matrix2, point3D);
-        if (depth2 > kMinDepth && depth2 < max_depth) {
-          points3D_cmb.push_back(point3D);
-        }
-      }
-    }
-
-    if (points3D_cmb.size() >= points3D.size()) {
-      R_cam1_from_cam2 = R_cmbs[i].transpose();
-      t_cam1_from_cam2 = t_cmbs[i];
-      points3D = points3D_cmb;
-    }
-  }
-
-  // Solve for t
-
-  A.resize(kNumPoints, 3);
-  A.setZero();
-
-  Eigen::VectorXd b(kNumPoints);
-  b.setZero();
-
-  for (size_t i = 0; i < kNumPoints; ++i) {
-    A.row(i) = rays2[i].dir.transpose() * R_cam1_from_cam2.transpose() *
-               CrossProductMatrix(rays1[i].dir);
-    // b(i,:) =
-    // r22(:,i)'*skewm(t2(:,i))*R'*r12(:,i)-r22(:,i)'*R'*skewm(t1(:,i))*r12(:,i);
-    b.row(i) = rays2[i].dir.transpose() * CrossProductMatrix(vc2[i]) *
-                   R_cam1_from_cam2.transpose() * rays1[i].dir -
-               rays2[i].dir.transpose() * R_cam1_from_cam2.transpose() *
-                   CrossProductMatrix(vc1[i]) * rays1[i].dir;
-  }
-
-  Eigen::JacobiSVD<Eigen::MatrixXd> t_solver_svd(
-      A, Eigen::ComputeFullU | Eigen::ComputeFullV);
-  t_cam1_from_cam2 = t_solver_svd.solve(b);
-
-  // LOG(INFO) << "R1: \n" << R1;
-  // LOG(INFO) << "R2: \n" << R2;
-  // LOG(INFO) << "t: \n" << R2;
-
-  Rigid3d cam1_from_cam2(Eigen::Quaterniond(R_cam1_from_cam2),
-                         t_cam1_from_cam2);
-  two_view_geometry.cam2_from_cam1 = Inverse(cam1_from_cam2);
-
-  return two_view_geometry;
-}
-/// Xiaohu's relative pose init ///
-
-void EvaluateXiaoHu(const Camera& camera) {
-  // Create a random GT pose.
-  const double tx = colmap::RandomUniformReal(0.5, 2.5);
-  const double ty = colmap::RandomUniformReal(-0.5, 0.5);
-  const double tz = colmap::RandomUniformReal(-0.5, 0.5);
-  const double distance = colmap::RandomUniformReal(6.0, 8.0);
-  Eigen::Vector3d proj_center(tx, ty, tz);
-
-  colmap::Rigid3d cam2_from_cam1;
-
-  GenerateRandomSecondViewPose(proj_center, distance, cam2_from_cam1);
-  PointsData points_data;
-  GenerateRandom2D2DPoints(camera, 100, cam2_from_cam1, points_data, 0, 1.0);
-
-  // Extract corresponding points.
-  const size_t kNumPoints = points_data.points2D1_refrac.size();
-
-  std::vector<RefracRelPoseEstimator::X_t> points1(kNumPoints);
-  std::vector<RefracRelPoseEstimator::Y_t> points2(kNumPoints);
-
-  for (size_t i = 0; i < kNumPoints; ++i) {
-    points1[i].virtual_from_real = points_data.virtual_from_reals1[i];
-    points1[i].ray_in_virtual = points_data.virtual_cameras1[i]
-                                    .CamFromImg(points_data.points2D1_refrac[i])
-                                    .homogeneous()
-                                    .normalized();
-
-    points2[i].virtual_from_real = points_data.virtual_from_reals2[i];
-    points2[i].ray_in_virtual = points_data.virtual_cameras2[i]
-                                    .CamFromImg(points_data.points2D2_refrac[i])
-                                    .homogeneous()
-                                    .normalized();
-  }
-
-  TwoViewGeometry geometry;
-
-  std::vector<Rigid3d> sols;
-  RefracRelPoseEstimator::Estimate(points1, points2, &sols);
-  geometry.cam2_from_cam1 = sols[0];
-
-  // for (size_t i = 0; i < points1.size(); ++i) {
-  //   points1[i].cam_from_rig =
-  //       points_data.virtual_from_reals1[points_data.points2D1_ref];
-  //   matched_points1[i].ray_in_cam =
-  //       virtual_cameras1[matches[i].point2D_idx1]
-  //           .CamFromImg(points1[matches[i].point2D_idx1])
-  //           .homogeneous()
-  //           .normalized();
-
-  //   matched_points2[i].cam_from_rig =
-  //       virtual_from_reals2[matches[i].point2D_idx2];
-  //   matched_points2[i].ray_in_cam =
-  //       virtual_cameras2[matches[i].point2D_idx2]
-  //           .CamFromImg(points2[matches[i].point2D_idx2])
-  //           .homogeneous()
-  //           .normalized();
-  // }
-
-  // TwoViewGeometry geometry = XiaoHuInit(camera, points_data);
-
-  LOG(INFO) << "GT  : "
-            << points_data.cam2_from_cam1_gt.rotation.coeffs().transpose()
-            << " , " << points_data.cam2_from_cam1_gt.translation.transpose();
-  LOG(INFO) << "EST : " << geometry.cam2_from_cam1.rotation.coeffs().transpose()
-            << " , " << geometry.cam2_from_cam1.translation.transpose();
-}
-
 int main(int argc, char* argv[]) {
   SetPRNGSeed(time(NULL));
 
@@ -862,6 +469,7 @@ int main(int argc, char* argv[]) {
   // Generate simulated point data.
   const size_t num_points = 200;
   const double inlier_ratio = 0.7;
+  bool is_flatport = true;
 
   std::string output_dir =
       "/home/mshe/workspace/omv_src/colmap-project/refrac_sfm_eval/plots/"
@@ -871,8 +479,13 @@ int main(int argc, char* argv[]) {
      << "_inlier_ratio_" << inlier_ratio << ".txt";
   std::string output_path = ss.str();
 
-  // EvaluateXiaoHu(camera);
-  EvaluateMultipleMethods(camera, num_points, 200, inlier_ratio, output_path);
+  // Which methods to evaluate?
+  std::vector<RelTwoViewMethod> methods = {RelTwoViewMethod::kNonRefrac,
+                                           RelTwoViewMethod::kBestFit,
+                                           RelTwoViewMethod::kBestFitRefine};
+
+  Evaluate(
+      camera, num_points, 200, inlier_ratio, is_flatport, methods, output_path);
 
   return true;
 }

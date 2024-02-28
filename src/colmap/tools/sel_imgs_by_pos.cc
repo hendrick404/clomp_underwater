@@ -26,12 +26,12 @@ int main(int argc, char** argv) {
   options.Parse(argc, argv);
 
   if (!ExistsDir(input_path)) {
-    std::cerr << "ERROR: `input_path` is not a directory" << std::endl;
+    LOG(ERROR) << "`input_path` is not a directory";
     return EXIT_FAILURE;
   }
 
   if (!ExistsDir(output_path)) {
-    std::cerr << "ERROR: `output_path` is not a directory" << std::endl;
+    LOG(ERROR) << "`output_path` is not a directory";
     return EXIT_FAILURE;
   }
   CHECK_GT(radius, 0.0) << "Radius must be greater than 0";
@@ -64,8 +64,7 @@ int main(int argc, char** argv) {
       continue;
     }
 
-    std::cout << "Copying " << image_id << " , distance " << distance
-              << std::endl;
+    LOG(INFO) << "Copying " << image_id << " , distance " << distance;
     const std::string& image_name = image.Name();
     std::string src_path = JoinPaths(*options.image_path.get(), image_name);
     std::string dst_path = JoinPaths(output_path, "images", image_name);
@@ -84,8 +83,7 @@ int main(int argc, char** argv) {
         CreateDirIfNotExists(GetParentDir(dst_path));
         FileCopy(src_path, dst_path);
       } else {
-        std::cerr << "WARN: csv file" << file_root << "doesn't exist "
-                  << std::endl;
+        LOG(WARNING) << "csv file" << file_root << "doesn't exist";
       }
     }
   }

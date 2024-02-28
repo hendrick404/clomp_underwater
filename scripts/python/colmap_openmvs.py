@@ -269,19 +269,19 @@ def parse_args():
         "--leaf_max_num_images",
         help="the maximum number of images in a leaf note cluster. This option is only for hybrid mapper",
         type=int,
-        default=200,
+        default=500,
     )
     group.add_argument(
         "--image_overlap",
         help="the number of overlapping images between child clusters. This option is only for hybrid mapper",
         type=int,
-        default=40,
+        default=50,
     )
     group.add_argument(
         "--max_num_weak_area_revisit",
         help="the maxinum number of weak area revists",
         type=int,
-        default=2,
+        default=1,
     )
     group.add_argument(
         "--re_max_num_images",

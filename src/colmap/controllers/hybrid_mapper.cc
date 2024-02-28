@@ -196,22 +196,6 @@ void HybridMapperController::Run() {
     reconstruction_manager_->Get(reconstruction_manager_->Add()) = pgo_result;
   }
 
-  // Debug, export the merged reconstruction.
-  // auto& reconstruction_managers = hybrid_mapper.GetReconstructionManagers();
-  // CHECK_EQ(reconstruction_managers.size(), 1);
-  // *reconstruction_manager_ =
-  // std::move(reconstruction_managers.begin()->second);
-
-  // Debug, output all clustered reconstructions
-  // auto& reconstruction_managers = hybrid_mapper.GetReconstructionManagers();
-  // for (const auto& cluster_el : reconstruction_managers) {
-  //   for (size_t i = 0; i < cluster_el.second.Size(); i++) {
-  //     const Reconstruction& recon = cluster_el.second.Get(i);
-  //     const size_t idx = reconstruction_manager_->Add();
-  //     reconstruction_manager_->Get(idx) = recon;
-  //   }
-  // }
-
   GetTimer().PrintMinutes();
 }
 

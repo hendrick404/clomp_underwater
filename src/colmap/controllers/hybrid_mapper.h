@@ -20,7 +20,7 @@ class HybridMapperController : public Thread {
     int num_workers = -1;
 
     // The maxinum number of weak area revists.
-    size_t max_num_weak_area_revisit = 2;
+    size_t max_num_weak_area_revisit = 1;
 
     // The maximum number of images for weak area revisit.
     size_t re_max_num_images = 30;
