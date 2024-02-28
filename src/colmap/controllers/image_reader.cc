@@ -244,12 +244,24 @@ ImageReader::Status ImageReader::Next(Camera* camera,
                          std::max(bitmap->Width(), bitmap->Height());
         }
 
+        Camera prev_camera_cache;
+        if (options_.camera_refrac_model != "NONE") {
+          // Refractive parameters are given, however, the intrinsics are
+          // unknown.
+          prev_camera_cache = prev_camera_;
+        }
+
         prev_camera_ = Camera::CreateFromModelId(prev_camera_.camera_id,
                                                  prev_camera_.model_id,
                                                  focal_length,
                                                  bitmap->Width(),
                                                  bitmap->Height());
         prev_camera_.has_prior_focal_length = has_focal_length;
+
+        if (options_.camera_refrac_model != "NONE") {
+          prev_camera_.refrac_model_id = prev_camera_cache.refrac_model_id;
+          prev_camera_.refrac_params = prev_camera_cache.refrac_params;
+        }
       }
 
       prev_camera_.width = static_cast<size_t>(bitmap->Width());
