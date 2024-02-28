@@ -732,8 +732,7 @@ IncrementalMapper::AdjustLocalBundle(
       const image_t image_id1 = local_bundle[local_bundle.size() - 1];
       const image_t image_id2 = local_bundle[local_bundle.size() - 2];
       ba_config.SetConstantCamPose(image_id1);
-      if (!options.enable_refraction ||
-          (options.enable_refraction && local_bundle.size() < 4)) {
+      if (!options.enable_refraction) {
         if (!options.fix_existing_images ||
             !existing_image_ids_.count(image_id2)) {
           ba_config.SetConstantCamPositions(image_id2, {0});
@@ -828,8 +827,7 @@ bool IncrementalMapper::AdjustGlobalBundle(
   // Fix 7-DOFs of the bundle adjustment problem.
   if (!options.use_pose_prior) {
     ba_config.SetConstantCamPose(reg_image_ids[0]);
-    if (!options.enable_refraction ||
-        (options.enable_refraction && reg_image_ids.size() < 4)) {
+    if (!options.enable_refraction) {
       if (!options.fix_existing_images ||
           !existing_image_ids_.count(reg_image_ids[1])) {
         ba_config.SetConstantCamPositions(reg_image_ids[1], {0});
