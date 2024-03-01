@@ -1,14 +1,18 @@
-COLMAP
+COLMAP Underwater
 ======
 
 About
 -----
 
-COLMAP is a general-purpose Structure-from-Motion (SfM) and Multi-View Stereo
-(MVS) pipeline with a graphical and command-line interface. It offers a wide
-range of features for reconstruction of ordered and unordered image collections.
-The software is licensed under the new BSD license. If you use this project for
-your research, please cite:
+COLMAP underwater is a fork of the original Structure-from-Motion (SfM) framework COLMAP which mainly focuses on 3D reconstruction in the underwater domain.
+It supports Refractive Structure-from-Motion (RSfM) when using cameras underwater with waterproof housings (flat-ports / dome-ports).
+
+Features include:
+- Implementation of the commonly used refractive camera models (flat-port / dome-port camera models). 
+- Refractive Structure-from-Motion pipeline.
+- Add pose priors (e.g. navigation data) as a soft constraint to the reconstruction, the resulting model is in the same scale as the pose priors.
+
+Since the main incremental SfM algorithm remains unchanged as the original COLMAP, please also cite the following papers if you use this project for your research:
 
     @inproceedings{schoenberger2016sfm,
         author={Sch\"{o}nberger, Johannes Lutz and Frahm, Jan-Michael},
