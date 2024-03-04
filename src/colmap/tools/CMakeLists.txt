@@ -67,6 +67,15 @@ COLMAP_ADD_EXECUTABLE(
         colmap_estimators
 )
 
+COLMAP_ADD_EXECUTABLE(
+    NAME colmap_example_refrac
+    SRCS 
+        example_refrac.cc
+    LINK_LIBS
+        colmap_scene
+)
+
 set_target_properties(colmap_sel_imgs_by_pos PROPERTIES OUTPUT_NAME sel_imgs_by_pos)
 set_target_properties(colmap_eval_refrac_abs_pose PROPERTIES OUTPUT_NAME eval_refrac_abs_pose)
 set_target_properties(colmap_eval_refrac_rel_pose PROPERTIES OUTPUT_NAME eval_refrac_rel_pose) 
+set_target_properties(colmap_example_refrac PROPERTIES OUTPUT_NAME example_refrac)

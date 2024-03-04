@@ -77,12 +77,111 @@ Many traditional multi-view geometry techniques, e.g. two-view geometry, pose es
 What's Different?
 ---------------
 
-Comming soon...
+#### Feature Extraction:
+<p align="center">
+  <img src="doc/images/feat_extract_refrac_models.png" height="350" />
+</p>
+
+When extracting SIFT features, in addition to providing the intrinsic parameters (**In-air**) of the camera, the refractive parameters can be specified in the **Refractive Camera Model** checkbox.
+
+#### Databae:
+<p align="center">
+  <img src="doc/images/database_with_refrac.png" height="60" />
+</p>
+
+The database table is extended to store and display the refractive parameters. If the camera is not refractive, the refractive camera model is set to be *NONE* and the refractive parameters are empty.
+**Note**: due to the change in the database table, the database created by this COLMAP Underwater is **incompatible** with the original COLMAP!
+
+#### Reconstruction Options
+
+<p align="center">
+  <img src="doc/images/recon_options.png" height="400" />
+</p>
+
+Setting **enable_refraction** to *true* will perform refractive Structure-from-Motion, otherwise, it will perform standard Structure-from-Motion as the original COLMAP.
 
 Usage tips
 ---------------
 
-Comming soon...
+- **Pre-calibration of the underwater camera systems**. This process involves two key steps:
+  - 1) Remove the camera from the underwater housing, if feasible, and calibrate its intrinsic parameters **in-air**.
+  - 2) Reassemble the camera with the housing and submerge the entire system underwater alongside a calibration target (e.g., checkerboard, 3D target) to calibrate the refractive parameters (housing calibration). An underwater calibration toolbox is available at: https://cau-git.rz.uni-kiel.de/inf-ag-koeser/calibmar.
+
+- **In the absence of calibration**. If no calibration is available at all, it is technically possible to refine the intrinsic and refractive parameters during the reconstruction process, provided that the initial given parameters do not significantly deviate. However, it's important to note that this optimization does not guarantee convergence. One approach is to iterate through the dataset multiple times, supplying the reconstruction with the last best set of parameters until satisfactory convergence is achieved.
+
+Using it as a refractive vision library
+---------------
+
+#### 1. Create a refractive camera (example as a flat-port camera with random parameters)
+
+```C++
+#include "colmap/math/random.h"
+#include "colmap/scene/camera.h"
+#include "colmap/util/logging.h"
+
+#include <iostream>
+
+using namespace colmap;
+
+int main(int argc, char** argv) {
+  // Create a traditional in-air camera.
+
+  Camera camera;
+  camera.width = 1920;
+  camera.height = 1080;
+  camera.model_id = CameraModelId::kSimpleRadial;
+  std::vector<double> params = {
+      1297.3655404279762, 1297.3655404279762, 960.0, 540.0, 0.01};
+  camera.params = params;
+
+  // Set the camera as a refractive camera (flat-port case).
+  camera.refrac_model_id = CameraRefracModelId::kFlatPort;
+  Eigen::Vector3d int_normal;
+  int_normal[0] = RandomUniformReal(-0.2, 0.2);
+  int_normal[1] = RandomUniformReal(-0.2, 0.2);
+  int_normal[2] = RandomUniformReal(0.8, 1.2);
+  int_normal.normalize();
+
+  std::vector<double> flatport_params = {int_normal[0],
+                                         int_normal[1],
+                                         int_normal[2],
+                                         colmap::RandomUniformReal(0.001, 0.05),
+                                         colmap::RandomUniformReal(0.002, 0.2),
+                                         1.0,
+                                         1.52,
+                                         1.334};
+  camera.refrac_params = flatport_params;
+```
+
+#### 2. Refractive Back-projection and Projection
+```C++
+// Given a random 2D image point, back-project it to 3D as a refracted ray in
+  // the water.
+  Eigen::Vector2d point2D(
+      RandomUniformReal(0.5, static_cast<double>(camera.width - 0.5)),
+      RandomUniformReal(0.5, static_cast<double>(camera.height - 0.5)));
+
+  colmap::Ray3D ray_w = camera.CamFromImgRefrac(point2D);
+  LOG(INFO) << "ray origin on the interface: " << ray_w.ori.transpose()
+            << " , ray direction in the water: " << ray_w.dir.transpose();
+
+  // Find a 3D point on this ray at a random depth.
+  const double depth = RandomUniformReal(0.5, 10.0);
+  Eigen::Vector3d point3D = ray_w.At(depth);
+
+  // Forward project the 3D point onto the image refractively.
+  Eigen::Vector2d projection_refrac = camera.ImgFromCamRefrac(point3D);
+
+  LOG(INFO) << " Original 2D point: " << point2D.transpose();
+  LOG(INFO) << "Projected 2D point: " << projection_refrac.transpose();
+  return EXIT_SUCCESS;
+}
+```
+``` 
+I0304 17:44:58.649542 12573 example_refrac.cc:45] ray origin on the interface: -0.00901437 -0.00256852    0.169886 , ray direction in the water: -0.0534277 -0.0158068   0.998447
+I0304 17:44:58.649735 12573 example_refrac.cc:55]  Original 2D point: 571.469 415.248
+I0304 17:44:58.649755 12573 example_refrac.cc:56] Projected 2D point: 571.469 415.248
+```
 
 License
 -------
