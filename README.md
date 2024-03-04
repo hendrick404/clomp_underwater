@@ -62,17 +62,17 @@ The planar shaped housing interfaces are referred to as **flat-ports**, and  the
 The housing interfaces are modeled with additional parameters in the image formation process to account for the refraction effects.
 
 - The Flat-port parameters:
-  -  the unit-length interface normal $\mathbf{n}_{\mathrm{int}} = (n_x, n_y, n_z)^T$. The normal vector points the positive $Z$-axis, with $\mathbf{n}_{\mathrm{int}} = (0, 0, 1)^T$ coinciding with the optical axis of the camera.
-  - the camera-to-interface distance $d_{\mathrm{int}}$ (the orthogonal distance from the camera projection center to the interface plane)
+  -  the unit-length interface normal vector $\mathbf{n}_{\mathrm{int}} = (n_x, n_y, n_z)^T$. The normal points towards the positive $Z$-axis, with $\mathbf{n}_{\mathrm{int}} = (0, 0, 1)^T$ coinciding with the optical axis of the camera.
+  - the camera-to-interface distance $d_{\mathrm{int}}$ (the orthogonal distance from the camera projection center to the interface plane). (unit: [$m$])
   - the thickness of the interface (unit: [$m$])
-  - refraction indices of air, glass and water: $n_a, n_g, n_w$, e.g. $n_a = 1.0$, $n_g = 1.49$, $n_w = 1.334$ 
+  - refraction indices of air, glass and water: $n_a, n_g, n_w$. For example: $n_a = 1.0$, $n_g = 1.49$, $n_w = 1.334$ 
   
 - The Dome-port parameters:
-  -  the dome center in the local camera coordinate frame $\mathbf{C}_d = (c_x, c_y, c_z)^T$. If $\mathbf{C}_d = (0, 0, 0)^T$, then the dome-port is perfectly centered with the camera, no refraction occurs at the interface.
-  - the dome-port radius and thickness in meters.
-  - refraction indices of air, glass and water: $n_a, n_g, n_w$, e.g. $n_a = 1.0$, $n_g = 1.49$, $n_w = 1.334$
+  -  the dome center in the local camera coordinate frame $\mathbf{C}_d = (c_x, c_y, c_z)^T$ (unit: [$m$]). If $\mathbf{C}_d = (0, 0, 0)^T$, then the dome-port is perfectly centered with the camera, refraction will not occur at the interface.
+  - the dome-port radius and thickness. (unit: [$m$])
+  - refraction indices of air, glass and water: $n_a, n_g, n_w$.
   
-Many traditional multi-view geometry techniques, e.g. two-view geometry, pose estimation, bundle adjustment are developed based on pinhole models. We need to adapt the framework to use these special camera models in Structure-from-Motion.
+Many traditional multi-view geometry techniques, e.g. two-view geometry, pose estimation, bundle adjustment are developed based on the pinhole camera model. We therefore need to adapt the framework such that these refractive camera models can be utilized for Structure-from-Motion.
 
 What's Different?
 ---------------
