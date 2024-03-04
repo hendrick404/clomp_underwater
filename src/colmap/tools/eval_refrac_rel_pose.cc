@@ -469,20 +469,21 @@ int main(int argc, char* argv[]) {
   // Generate simulated point data.
   const size_t num_points = 200;
   const double inlier_ratio = 0.7;
-  bool is_flatport = true;
+  bool is_flatport = false;
 
   std::string output_dir =
       "/home/mshe/workspace/omv_src/colmap-project/refrac_sfm_eval/plots/"
-      "rel_pose/compare_methods2/";
+      "rel_pose/compare_methods3/";
   std::stringstream ss;
-  ss << output_dir << "/flat_noise_range_2_only_best_fit_" << num_points
-     << "_inlier_ratio_" << inlier_ratio << ".txt";
+  ss << output_dir << "/dome_noise_range_2_" << num_points << "_inlier_ratio_"
+     << inlier_ratio << ".txt";
   std::string output_path = ss.str();
 
   // Which methods to evaluate?
   std::vector<RelTwoViewMethod> methods = {RelTwoViewMethod::kNonRefrac,
-                                           RelTwoViewMethod::kBestFit,
-                                           RelTwoViewMethod::kBestFitRefine};
+                                           RelTwoViewMethod::kXiaoHu,
+                                           RelTwoViewMethod::kGR6P,
+                                           RelTwoViewMethod::kBestFit};
 
   Evaluate(
       camera, num_points, 200, inlier_ratio, is_flatport, methods, output_path);

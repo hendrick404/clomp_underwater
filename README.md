@@ -4,15 +4,15 @@ COLMAP Underwater
 About
 -----
 
-COLMAP underwater is a fork of the original Structure-from-Motion (SfM) framework COLMAP which mainly focuses on 3D reconstruction in the underwater domain.
-It supports Refractive Structure-from-Motion (RSfM) when using cameras underwater with waterproof housings (flat-ports / dome-ports).
+This repo is a fork of the original Structure-from-Motion (SfM) framework COLMAP (https://github.com/colmap/colmap) which mainly focuses on 3D reconstruction in the underwater domain.
+It supports Refractive Structure-from-Motion (RSfM) when using cameras underwater with waterproof housings (flat-ports / dome-ports), and it supports using navigation data in the reconstruction to help reducing drift in the large-scale robotic mapping scenarios.
 
 Features include:
 - Implementation of the commonly used refractive camera models (flat-port / dome-port camera models). 
-- Refractive Structure-from-Motion pipeline.
-- Add pose priors (e.g. navigation data) as a soft constraint to the reconstruction, the resulting model is in the same scale as the pose priors.
+- Refractive Structure-from-Motion.
+- Bundle adjustment with pose priors (e.g. navigation data) in SfM to reduce potential drift in the large-scale robotic visual mapping scenario.
 
-Since the main incremental SfM algorithm remains unchanged as the original COLMAP, please also cite the following papers if you use this project for your research:
+Since the main framework is created by the original COLMAP, please also cite the following papers if you use this project for your research:
 
     @inproceedings{schoenberger2016sfm,
         author={Sch\"{o}nberger, Johannes Lutz and Frahm, Jan-Michael},
@@ -37,60 +37,52 @@ If you use the image retrieval / vocabulary tree engine, please also cite:
         year={2016},
     }
 
-The latest source code is available at https://github.com/colmap/colmap. COLMAP
-builds on top of existing works and when using specific algorithms within
-COLMAP, please also cite the original authors, as specified in the source code.
 
 
-Download
+Compilation
 --------
 
-Executables for Windows and Mac and other resources can be downloaded from
-https://demuc.de/colmap/. Executables for Linux/Unix/BSD are available at
-https://repology.org/metapackage/colmap/versions. To build COLMAP from source,
-please see https://colmap.github.io/install.html.
+Building COLMAP Underwater from source is exactly the same as building the original COLMAP as there is no extra dependency. Therefore, please see  https://colmap.github.io/install.html
 
-Getting Started
+Why COLMAP Underwater?
 ---------------
 
-1. Download the pre-built binaries from https://demuc.de/colmap/ or build the
-   library manually as described in the documentation.
-2. Download one of the provided datasets at https://demuc.de/colmap/datasets/
-   or use your own images.
-3. Use the **automatic reconstruction** to easily build models
-   with a single click or command.
+To protect cameras from water and pressure, they are enclosed in waterproof housings, and observe the environment through a transparent window, typically with a *planar* or *spherical* shape. Light rays from the underwater scene change direction when they travel through these interfaces in a non-orthogonal manner, leading to distortion in the acquired images.
 
+Example underwater cameras are:
 
-Documentation
--------------
+<p align="center">
+  <img src="doc/images/vive_dome.jpg" height="320" />
+  <img src="doc/images/flatport_with_lights.jpg" height="320" /> 
+  <img src="doc/images/flatport_deepsea.jpg" height="320" />
+</p>
 
-The documentation is available at https://colmap.github.io/.
+The planar shaped housing interfaces are referred to as **flat-ports**, and  the spherical shaped ones are referred to as **dome-ports**.
 
+The housing interfaces are modeled with additional parameters in the image formation process to account for the refraction effects.
 
-Support
--------
+- The Flat-port parameters:
+  -  the unit-length interface normal $\mathbf{n}_{\mathrm{int}} = (n_x, n_y, n_z)^T$. The normal vector points the positive $Z$-axis, with $\mathbf{n}_{\mathrm{int}} = (0, 0, 1)^T$ coinciding with the optical axis of the camera.
+  - the camera-to-interface distance $d_{\mathrm{int}}$ (the orthogonal distance from the camera projection center to the interface plane)
+  - the thickness of the interface (unit: [$m$])
+  - refraction indices of air, glass and water: $n_a, n_g, n_w$, e.g. $n_a = 1.0$, $n_g = 1.49$, $n_w = 1.334$ 
+  
+- The Dome-port parameters:
+  -  the dome center in the local camera coordinate frame $\mathbf{C}_d = (c_x, c_y, c_z)^T$. If $\mathbf{C}_d = (0, 0, 0)^T$, then the dome-port is perfectly centered with the camera, no refraction occurs at the interface.
+  - the dome-port radius and thickness in meters.
+  - refraction indices of air, glass and water: $n_a, n_g, n_w$, e.g. $n_a = 1.0$, $n_g = 1.49$, $n_w = 1.334$
+  
+Many traditional multi-view geometry techniques, e.g. two-view geometry, pose estimation, bundle adjustment are developed based on pinhole models. We need to adapt the framework to use these special camera models in Structure-from-Motion.
 
-Please, use GitHub Discussions at https://github.com/colmap/colmap/discussions
-for questions and the GitHub issue tracker at https://github.com/colmap/colmap
-for bug reports, feature requests/additions, etc.
-
-
-Acknowledgments
+What's Different?
 ---------------
 
-The library was originally written by Johannes L. Schönberger
-(https://demuc.de/) with funding provided by his PhD advisors Jan-Michael Frahm
-and Marc Pollefeys. Since then the project has benefited from countless
-community contributions, including bug fixes, improvements, new features,
-third-party tooling, and community support.
+Comming soon...
 
+Usage tips
+---------------
 
-Contribution
-------------
-
-Contributions (bug reports, bug fixes, improvements, etc.) are very welcome and
-should be submitted in the form of new issues and/or pull requests on GitHub.
-
+Comming soon...
 
 License
 -------
