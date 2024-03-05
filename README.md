@@ -182,7 +182,7 @@ I0304 17:44:58.649735 12573 example_refrac.cc:55]  Original 2D point: 571.469 41
 I0304 17:44:58.649755 12573 example_refrac.cc:56] Projected 2D point: 571.469 415.248
 ```
 
-#### 3. Refractive Absolute/Relative Pose Estimation.
+#### 3. Refractive Absolute/Relative Pose Estimation
 examples can be found at `src/colmap/tools/eval_refrac_abs_pose.cc` and `src/colmap/tools/eval_refrac_rel_pose.cc`
 
 License
