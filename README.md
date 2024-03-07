@@ -61,7 +61,7 @@ The planar-shaped housing interfaces are commonly referred to as **flat-ports**,
 The housing interfaces are modeled with additional parameters in the image formation process to account for the refraction effects underwater.
 
 - The Flat-port parameters:
-  -  the unit-length interface normal vector $\mathbf{n}_{\mathrm{int}} = (n_x, n_y, n_z)^T$. The normal points towards the positive $Z$-axis, with $\mathbf{n}_{\mathrm{int}} = (0, 0, 1)^T$ coinciding with the optical axis of the camera.
+  -  the unit-length interface normal vector $(n_x, n_y, n_z)^T$. The normal points towards the positive $Z$-axis, with $(0, 0, 1)^T$ coinciding with the optical axis of the camera.
   - the camera-to-interface distance $d_{\mathrm{int}}$ (the orthogonal distance from the camera projection center to the interface plane) (unit: [$m$]).
   - the thickness of the interface (unit: [$m$]).
   - refraction indices of air, glass and water: $n_a, n_g, n_w$. For example: $n_a = 1.0$, $n_g = 1.49$, $n_w = 1.334$.
@@ -98,6 +98,8 @@ The database table is extended to store and display the refractive parameters. I
 </p>
 
 Setting **enable_refraction** to *true* will activate refractive Structure-from-Motion, otherwise, the framework will perform standard Structure-from-Motion as the original COLMAP regardless of whether the camera is refractive or not.
+
+This **enable_refraction** option also exists in **Feature Matching Widget** and **Bundle Adjustment Widget**.
 
 #### Output format:
 Once the reconstruction is finished, the exported *cameras.txt* or *cameras.bin* from COLMAP Underwater contains addtional refractive parameters. Therefore, the format is also **incompatible** with the original COLMAP.
