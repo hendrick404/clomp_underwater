@@ -907,6 +907,8 @@ bool HybridMapper::TriangulateTrack(
   point_data.resize(track.Length());
   std::vector<TriangulationEstimator::PoseData> pose_data;
   pose_data.resize(track.Length());
+  std::vector<Camera> virtual_cameras;
+  virtual_cameras.resize(track.Length());
   for (size_t i = 0; i < track.Length(); i++) {
     const TrackElement& track_el = track.Element(i);
     const Image& image = reconstruction_->Image(track_el.image_id);
@@ -922,17 +924,16 @@ bool HybridMapper::TriangulateTrack(
     } else {
       // Refractive case.
       Rigid3d virtual_from_real;
-      Camera virtual_camera;
-      camera.ComputeVirtual(point2D.xy, virtual_camera, virtual_from_real);
+      camera.ComputeVirtual(point2D.xy, virtual_cameras[i], virtual_from_real);
       point_data[i].point = point2D.xy;
       point_data[i].point_normalized =
-          virtual_camera.CamFromImg(point_data[i].point);
+          virtual_cameras[i].CamFromImg(point_data[i].point);
       const Rigid3d virtual_from_world =
           virtual_from_real * image.CamFromWorld();
       pose_data[i].proj_matrix = virtual_from_world.ToMatrix();
       pose_data[i].proj_center = virtual_from_world.rotation.inverse() *
                                  -virtual_from_world.translation;
-      pose_data[i].camera = &virtual_camera;
+      pose_data[i].camera = &virtual_cameras[i];
     }
   }
 
