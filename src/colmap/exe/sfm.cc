@@ -787,6 +787,7 @@ int RunHybridMapper(int argc, char** argv) {
   options.AddDefaultOption("pgo_smooth_multi",
                            &mapper_options.pgo_smooth_multi);
   options.AddDefaultOption("show_pgo_result", &mapper_options.show_pgo_result);
+  options.AddDefaultOption("show_clusters", &mapper_options.show_clusters);
   options.AddMapperOptions();
   options.Parse(argc, argv);
 

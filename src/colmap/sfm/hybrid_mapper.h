@@ -64,6 +64,10 @@ class HybridMapper {
 
   void PrintViewGraphStats() const;
 
+  const std::unordered_map<const SceneClustering::Cluster*,
+                           std::shared_ptr<ReconstructionManager>>&
+  GetReconstructionManagers() const;
+
  protected:
   void ReconstructCluster(
       std::shared_ptr<const IncrementalMapperOptions> incremental_options,

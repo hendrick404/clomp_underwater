@@ -650,6 +650,12 @@ void HybridMapper::PrintViewGraphStats() const {
                    static_cast<double>(image_pair_stats_.size());
 }
 
+const std::unordered_map<const SceneClustering::Cluster*,
+                         std::shared_ptr<ReconstructionManager>>&
+HybridMapper::GetReconstructionManagers() const {
+  return reconstruction_managers_;
+}
+
 void HybridMapper::ReconstructCluster(
     std::shared_ptr<const IncrementalMapperOptions> incremental_options,
     std::shared_ptr<ReconstructionManager> reconstruction_manager) {

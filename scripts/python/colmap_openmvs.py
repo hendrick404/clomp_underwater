@@ -320,6 +320,12 @@ def parse_args():
         default=False,
     )
     group.add_argument(
+        "--show_clusters",
+        help="whether to additionally export the reconstructed clusters together with the reconstruction.",
+        action="store_true",
+        default=False
+    )
+    group.add_argument(
         "--min_num_matches",
         help="the minimum number of matches for inlier matches to be considered.",
         type=int,
@@ -526,6 +532,7 @@ class COLMAPOpenMVSPipeline:
         self.pgo_abs_pose_multi: float = args.pgo_abs_pose_multi
         self.pgo_smooth_multi: float = args.pgo_smooth_multi
         self.show_pgo_result: bool = args.show_pgo_result
+        self.show_clusters: bool = args.show_clusters
 
         self.min_num_matches: int = args.min_num_matches
         self.ba_local_num_images: int = args.ba_local_num_images
@@ -814,6 +821,8 @@ class COLMAPOpenMVSPipeline:
                 f"{self.pgo_smooth_multi}",
                 "--show_pgo_result",
                 f"{self.show_pgo_result}",
+                "--show_clusters",
+                f"{self.show_clusters}"
             ]
         if self.fix_intrin:
             mapper_cmds += [

@@ -196,6 +196,16 @@ void HybridMapperController::Run() {
     reconstruction_manager_->Get(reconstruction_manager_->Add()) = pgo_result;
   }
 
+  if (options_.show_clusters) {
+    const auto& all_recon_managers = hybrid_mapper.GetReconstructionManagers();
+    for (const auto& cluster_el : all_recon_managers) {
+      for (size_t i = 0; i < cluster_el.second->Size(); i++) {
+        const std::shared_ptr<Reconstruction> recon = cluster_el.second->Get(i);
+        reconstruction_manager_->Get(reconstruction_manager_->Add()) = recon;
+      }
+    }
+  }
+
   GetTimer().PrintMinutes();
 }
 

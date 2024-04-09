@@ -44,6 +44,10 @@ class HybridMapperController : public Thread {
     // with the reconstruction.
     bool show_pgo_result = false;
 
+    // Whether to additionally export the reconstructed clusters together with
+    // the reconstruction.
+    bool show_clusters = false;
+
     // Options for clustering the scene graph.
     SceneClustering::Options clustering_options;
 
