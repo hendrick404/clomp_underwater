@@ -810,13 +810,34 @@ int RunHybridMapper(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  for (size_t i = 0; i < reconstruction_manager->Size(); ++i) {
-    const std::string reconstruction_path =
-        JoinPaths(output_path, std::to_string(i));
-    CreateDirIfNotExists(reconstruction_path);
-    reconstruction_manager->Get(i)->Write(reconstruction_path);
-    options.Write(JoinPaths(reconstruction_path, "project.ini"));
+  if (mapper_options.show_clusters) {
+    size_t num_clusters = mapper_options.show_pgo_result
+                              ? reconstruction_manager->Size() - 2
+                              : reconstruction_manager->Size() - 1;
+    const std::string clusters_path = JoinPaths(output_path, "clusters");
+    CreateDirIfNotExists(clusters_path);
+    for (size_t i = 0; i < num_clusters; ++i) {
+      const std::string cluster_path =
+          JoinPaths(clusters_path, std::to_string(i));
+      CreateDirIfNotExists(cluster_path);
+      reconstruction_manager->Get(i)->Write(cluster_path);
+      options.Write(JoinPaths(cluster_path, "project.ini"));
+    }
   }
+  if (mapper_options.show_pgo_result) {
+    const std::string pgo_path = JoinPaths(output_path, "pgo");
+    const size_t pgo_idx = reconstruction_manager->Size() - 2;
+    CreateDirIfNotExists(pgo_path);
+    reconstruction_manager->Get(pgo_idx)->Write(pgo_path);
+    options.Write(JoinPaths(pgo_path, "project.ini"));
+  }
+
+  // Final result.
+  const std::string reconstruction_path = JoinPaths(output_path, "0");
+  CreateDirIfNotExists(reconstruction_path);
+  reconstruction_manager->Get(reconstruction_manager->Size() - 1)
+      ->Write(reconstruction_path);
+  options.Write(JoinPaths(reconstruction_path, "project.ini"));
 
   return EXIT_SUCCESS;
 }

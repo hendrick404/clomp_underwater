@@ -153,16 +153,29 @@ void HybridMapperController::Run() {
     hybrid_mapper.ReconstructWeakArea(options_.Mapper());
   }
 
+  // Abuse reconstruction_manager to store intermediate steps (not good, but do
+  // it for now).
+  if (options_.show_clusters) {
+    const auto& all_recon_managers = hybrid_mapper.GetReconstructionManagers();
+    for (const auto& cluster_el : all_recon_managers) {
+      for (size_t i = 0; i < cluster_el.second->Size(); i++) {
+        std::shared_ptr<Reconstruction>& sub_recon = cluster_el.second->Get(i);
+        reconstruction_manager_->Get(reconstruction_manager_->Add()) =
+            std::make_shared<Reconstruction>(*sub_recon);
+      }
+    }
+  }
+
   PrintHeading1("Global pose graph optimization");
   hybrid_mapper.GlobalPoseGraphOptim(options_.Mapper());
 
   PrintHeading1("Reconstruct inlier tracks");
   hybrid_mapper.ReconstructInlierTracks(options_.Mapper());
 
-  std::shared_ptr<Reconstruction> pgo_result;
   if (options_.show_pgo_result) {
     // Make a copy of the current stage of reconstruction and write out.
-    pgo_result = std::make_shared<Reconstruction>(*global_recon.get());
+    reconstruction_manager_->Get(reconstruction_manager_->Add()) =
+        std::make_shared<Reconstruction>(*global_recon);
   }
 
   PrintHeading1("Print view graph stats");
@@ -191,20 +204,6 @@ void HybridMapperController::Run() {
   hybrid_mapper.EndReconstruction();
 
   reconstruction_manager_->Get(reconstruction_manager_->Add()) = global_recon;
-
-  if (options_.show_pgo_result) {
-    reconstruction_manager_->Get(reconstruction_manager_->Add()) = pgo_result;
-  }
-
-  if (options_.show_clusters) {
-    const auto& all_recon_managers = hybrid_mapper.GetReconstructionManagers();
-    for (const auto& cluster_el : all_recon_managers) {
-      for (size_t i = 0; i < cluster_el.second->Size(); i++) {
-        const std::shared_ptr<Reconstruction> recon = cluster_el.second->Get(i);
-        reconstruction_manager_->Get(reconstruction_manager_->Add()) = recon;
-      }
-    }
-  }
 
   GetTimer().PrintMinutes();
 }
