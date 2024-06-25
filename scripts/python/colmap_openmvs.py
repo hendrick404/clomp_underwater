@@ -236,6 +236,12 @@ def parse_args():
         default=3200,
     )
     group.add_argument(
+        "--max_num_features",
+        help="maximum number of features for feature extraction",
+        type=int,
+        default=8192,
+    )
+    group.add_argument(
         "--domain_size_pooling",
         help="whether to use domain size pooling in feature extraction. (This helps to increase number of features, however it is slow as it only runs on CPU)",
         action="store_true",
@@ -517,6 +523,7 @@ class COLMAPOpenMVSPipeline:
         self.camera_refrac_model: str = args.camera_refrac_model
         self.camera_refrac_params: str = args.camera_refrac_params
         self.max_image_size: int = args.max_image_size
+        self.max_num_features: int = args.max_num_features
         self.domain_size_pooling: bool = args.domain_size_pooling
         self.camera_mask_path: str = args.camera_mask_path
         self.use_color_norm_in_features: bool = args.use_color_norm_in_features
@@ -711,6 +718,8 @@ class COLMAPOpenMVSPipeline:
                 f"{self.gpu_index}",
                 "--SiftExtraction.max_image_size",
                 f"{self.max_image_size}",
+                "--SiftExtraction.max_num_features",
+                f"{self.max_num_features}",
                 "--SiftExtraction.domain_size_pooling",
                 f"{self.domain_size_pooling}",
                 "--ImageReader.camera_mask_path",
