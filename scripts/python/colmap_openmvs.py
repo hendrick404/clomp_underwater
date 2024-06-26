@@ -438,7 +438,7 @@ def parse_args():
         "--split_type",
         help="how to split the model?",
         type=str,
-        choices=["tiles, extent, parts"],
+        choices=["tiles", "extent", "parts"],
         default="parts",
     )
     group.add_argument(
