@@ -11,6 +11,26 @@ Features include:
 - Refractive Structure-from-Motion.
 - Bundle adjustment with pose priors (e.g. navigation data) in SfM to reduce potential drift in the large-scale robotic visual mapping scenario.
 
+This work is accepted by IROS 2024 as oral presentation, please cite:
+
+    @inproceedings{she2024refractive,
+        title={Refractive COLMAP: Refractive Structure-from-Motion Revisited},
+        author={She, Mengkun and Seegr{\"a}ber, Felix and Nakath, David and K{\"o}ser, Kevin},
+        booktitle={2024 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
+        year={2024},
+        organization={IEEE}
+    }
+
+In addition, this repository also contains code to use navigation data as pose priors to assist SfM:
+
+    @article{she2023semihierarchical,
+        title={Semihierarchical reconstruction and weak-area revisiting for robotic visual seafloor mapping},
+        author={She, Mengkun and Song, Yifan and Nakath, David and K{\"o}ser, Kevin},
+        journal={Journal of Field Robotics},
+        year={2023},
+        publisher={Wiley Online Library}
+    }
+    
 Since the main framework is created by the original COLMAP, please also cite the following papers if you use this project for your research:
 
     @inproceedings{schoenberger2016sfm,
