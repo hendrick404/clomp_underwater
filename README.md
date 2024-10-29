@@ -1,3 +1,5 @@
+> **NOTE**: This repository is hosted on [Gitlab](https://cau-git.rz.uni-kiel.de/inf-ag-koeser/colmap_underwater) and mirrored to [Github](https://github.com/MDSKiel/colmap_underwater). Please use Github for [issues](https://github.com/MDSKiel/colmap_underwater/issues).
+
 COLMAP Underwater
 ======
 
