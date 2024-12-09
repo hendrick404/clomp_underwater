@@ -29,6 +29,7 @@
 
 #include "colmap/image/undistortion.h"
 
+#include "colmap/estimators/two_view_geometry.h"
 #include "colmap/geometry/pose.h"
 #include "colmap/image/warp.h"
 #include "colmap/sensor/models.h"
@@ -952,12 +953,15 @@ void UndistortImage(const UndistortCameraOptions& options,
   CHECK_EQ(distorted_camera.height, distorted_bitmap.Height());
 
   *undistorted_camera = UndistortCamera(options, distorted_camera);
+  LOG(INFO) << StringPrintf("Approximating non refractive camera %d", distorted_camera.IsCameraRefractive());
+  const Camera& _distorted_camera = distorted_camera.IsCameraRefractive() ? BestFitNonRefracCamera(CameraModelId::kSimplePinhole, distorted_camera, 0.1) : distorted_camera;
+
   undistorted_bitmap->Allocate(static_cast<int>(undistorted_camera->width),
                                static_cast<int>(undistorted_camera->height),
                                distorted_bitmap.IsRGB());
   distorted_bitmap.CloneMetadata(undistorted_bitmap);
 
-  WarpImageBetweenCameras(distorted_camera,
+  WarpImageBetweenCameras(_distorted_camera,
                           *undistorted_camera,
                           distorted_bitmap,
                           undistorted_bitmap);
