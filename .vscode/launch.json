@@ -16,10 +16,6 @@
                     // it gets resolved by CMake Tools:
                     "name": "PATH",
                     "value": "$PATH:${command:cmake.launchTargetDirectory}"
-                },
-                {
-                    "name": "OTHER_VALUE",
-                    "value": "Something something"
                 }
             ],
             "externalConsole": true,
