@@ -952,7 +952,7 @@ void UndistortImage(const UndistortCameraOptions& options,
   CHECK_EQ(distorted_camera.width, distorted_bitmap.Width());
   CHECK_EQ(distorted_camera.height, distorted_bitmap.Height());
 
-  const Camera& refractive_distorted_camera = distorted_camera.IsCameraRefractive() ? BestFitNonRefracCamera(CameraModelId::kSimplePinhole, distorted_camera, 40) : distorted_camera;
+  const Camera& refractive_distorted_camera = distorted_camera.IsCameraRefractive() ? BestFitNonRefracCameraRange(CameraModelId::kSimplePinhole, distorted_camera, 20, 40) : distorted_camera;
   *undistorted_camera = UndistortCamera(options, refractive_distorted_camera);
 
   undistorted_bitmap->Allocate(static_cast<int>(undistorted_camera->width),

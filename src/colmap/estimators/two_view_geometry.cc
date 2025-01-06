@@ -854,9 +854,15 @@ bool RefineRefractiveTwoViewGeometry(
   return summary.IsSolutionUsable();
 }
 
-Camera BestFitNonRefracCamera(const CameraModelId tgt_model_id,
-                              const Camera& camera,
+Camera BestFitNonRefracCamera(const CameraModelId tgt_model_id, const Camera& camera,
                               const double approx_depth) {
+  return BestFitNonRefracCameraRange(tgt_model_id, camera, approx_depth, -1);
+}
+
+Camera BestFitNonRefracCameraRange(const CameraModelId tgt_model_id,
+                              const Camera& camera,
+                              const double min_depth,
+                              const double max_depth) {
   CHECK(camera.IsCameraRefractive())
       << "Camera is not refractive, cannot compute the best approximated "
          "non-refractive camera";
@@ -880,7 +886,7 @@ Camera BestFitNonRefracCamera(const CameraModelId tgt_model_id,
     Eigen::Vector2d image_point(RandomUniformReal(0.5, width - 0.5),
                                 RandomUniformReal(0.5, height - 0.5));
     Eigen::Vector3d world_point =
-        camera.CamFromImgRefracPoint(image_point, approx_depth);
+        camera.CamFromImgRefracPoint(image_point, (max_depth< min_depth ? RandomUniformReal(min_depth, max_depth) : min_depth));
     points2D[i] = image_point;
     points3D[i] = world_point;
   }
@@ -939,8 +945,8 @@ Camera BestFitNonRefracCamera(const CameraModelId tgt_model_id,
     }
     reproj_error_sum = reproj_error_sum / static_cast<double>(kNumSamples);
     LOG(INFO) << "Best fit parameters for model " << tgt_camera.ModelName()
-              << " in distance " << approx_depth
-              << " computed, average residual: " << reproj_error_sum
+              << " in distance " << min_depth << " to " << max_depth
+              << " computed, aveBestFirage residual: " << reproj_error_sum
               << std::endl;
   }
   return tgt_camera;

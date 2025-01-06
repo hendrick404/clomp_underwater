@@ -193,6 +193,15 @@ Camera BestFitNonRefracCamera(CameraModelId tgt_model_id,
                               const Camera& camera,
                               double approx_depth);
 
+// Compute a best approximated non-refractive camera model of the current
+// refractive camera. This approximation can only work for a certain scene
+// distance range, the user should input the target scene depth range to
+// approximate.
+Camera BestFitNonRefracCameraRange(CameraModelId tgt_model_id,
+                                   const Camera& camera,
+                                   double min_depth,
+                                   double max_depth);
+
 TwoViewGeometry EstimateRefractiveTwoViewGeometryUseBestFit(
     const Camera& best_fit_camera1,
     const std::vector<Eigen::Vector2d>& points1,
