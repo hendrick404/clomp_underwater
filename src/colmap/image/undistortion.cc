@@ -251,8 +251,8 @@ bool COLMAPUndistorter::Undistort(const image_t image_id) const {
 
   // Check if the image is already undistorted and copy from source if no
   // scaling is needed
-  if (camera.IsUndistorted() && options_.max_image_size < 0 &&
-      ExistsFile(input_image_path)) {
+  if (!camera.IsCameraRefractive() && camera.IsUndistorted() &&
+      options_.max_image_size < 0 && ExistsFile(input_image_path)) {
     LOG(INFO) << "Undistorted image found; copying to location: "
               << output_image_path;
     FileCopy(input_image_path, output_image_path, copy_type_);
