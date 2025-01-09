@@ -6,7 +6,7 @@
         {
             "label": "prepare_refractive_best_fit",
             "type": "shell",
-            "command": "${workspaceFolder}/scripts/test_refractive_best_fit.sh"
+            "command": "${workspaceFolder}/scripts/test_refractive_best_fit.sh --prepare-undistortion"
         }
     ]
 }

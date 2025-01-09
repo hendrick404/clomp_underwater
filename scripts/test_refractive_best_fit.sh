@@ -7,8 +7,8 @@ CAM_PARAM_F=340.5
 CAM_PARAM_CX=556.5
 CAM_PARAM_CY=417.5
 CAM_PARAM_N="0.1658429,0.14809199,0.97496918"
-CAM_PARAM_INT_DIST=5
-CAM_PARAM_INT_THICK=2
+CAM_PARAM_INT_DIST=0.05
+CAM_PARAM_INT_THICK=0.02
 CAM_PARAM_NA=1
 CAM_PARAM_NG=1.52
 CAM_PARAM_NW=1.334
@@ -35,7 +35,8 @@ colmap_underwater mapper \
     --database_path $WORKSPACE_PATH/database.db \
     --image_path $WORKSPACE_PATH/images \
     --output_path $WORKSPACE_PATH/sparse
-BestFit
+
+if [ $1 = "--prepare-undistortion" ] ; then
     exit 0
 fi
 
