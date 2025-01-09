@@ -84,12 +84,12 @@ void UndistortionWidget::Undistort() {
 
   if (IsValid()) {
     std::unique_ptr<Thread> undistorter;
-
     if (output_format_->currentIndex() == 0) {
       undistorter = std::make_unique<COLMAPUndistorter>(undistortion_options_,
                                                         *reconstruction_,
                                                         *options_->image_path,
-                                                        output_path_);
+                                                        output_path_,
+                                                        *options_->database_path);
     } else if (output_format_->currentIndex() == 1) {
       undistorter = std::make_unique<PMVSUndistorter>(undistortion_options_,
                                                       *reconstruction_,

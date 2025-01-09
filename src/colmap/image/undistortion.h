@@ -29,7 +29,8 @@
 
 #pragma once
 
-#include "colmap/geometry/rigid3.h"
+#include "colmap/geometry/rigid3.h "
+#inlcude "colmap/scene/database.h"
 #include "colmap/scene/reconstruction.h"
 #include "colmap/sensor/bitmap.h"
 #include "colmap/util/misc.h"
@@ -68,6 +69,7 @@ class COLMAPUndistorter : public Thread {
       const Reconstruction& reconstruction,
       const std::string& image_path,
       const std::string& output_path,
+      const std::string& database_path,
       int num_related_images = 20,
       CopyType copy_type = CopyType::COPY,
       const std::vector<image_t>& image_ids = std::vector<image_t>());
@@ -83,6 +85,7 @@ class COLMAPUndistorter : public Thread {
   UndistortCameraOptions options_;
   const std::string image_path_;
   const std::string output_path_;
+  const std::string& database_path_;
   const CopyType copy_type_;
   const int num_patch_match_src_images_;
   const Reconstruction& reconstruction_;
@@ -206,6 +209,14 @@ void UndistortImage(const UndistortCameraOptions& options,
                     const Camera& distorted_camera,
                     Bitmap* undistorted_image,
                     Camera* undistorted_camera);
+
+void UndistortImage(const UndistortCameraOptions& options,
+                    const Bitmap& distorted_image,
+                    const Camera& distorted_camera,
+                    Bitmap* undistorted_image,
+                    Camera* undistorted_camera,
+                    const std::string& database_path,
+                    const image_t image_id);
 
 // Undistort all cameras in the reconstruction and accordingly all
 // observations in their corresponding images.

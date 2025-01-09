@@ -157,12 +157,14 @@ COLMAPUndistorter::COLMAPUndistorter(const UndistortCameraOptions& options,
                                      const Reconstruction& reconstruction,
                                      const std::string& image_path,
                                      const std::string& output_path,
+                                     const std::string& database_path,
                                      const int num_patch_match_src_images,
                                      const CopyType copy_type,
                                      const std::vector<image_t>& image_ids)
     : options_(options),
       image_path_(image_path),
       output_path_(output_path),
+      database_path_(database_path),
       copy_type_(copy_type),
       num_patch_match_src_images_(num_patch_match_src_images),
       reconstruction_(reconstruction),
@@ -268,7 +270,9 @@ bool COLMAPUndistorter::Undistort(const image_t image_id) const {
                  distorted_bitmap,
                  camera,
                  &undistorted_bitmap,
-                 &undistorted_camera);
+                 &undistorted_camera,
+                 database_path_,
+                 image_id);
   return undistorted_bitmap.Write(output_image_path);
 }
 
@@ -942,6 +946,39 @@ Camera UndistortCamera(const UndistortCameraOptions& options,
   }
 
   return undistorted_camera;
+}
+
+void UndistortImage(const UndistortCameraOptions& options,
+                    const Bitmap& distorted_bitmap,
+                    const Camera& distorted_camera,
+                    Bitmap* undistorted_bitmap,
+                    Camera* undistorted_camera,
+                    const std::string& database_path,
+                    const image_t image_id) {
+  CHECK_EQ(distorted_camera.width, distorted_bitmap.Width());
+  CHECK_EQ(distorted_camera.height, distorted_bitmap.Height());
+
+  Database database = Database(database_path);
+  database.Open(database_path);
+  auto keypoints = database.ReadKeypoints(image_id);
+  database.Close();
+
+  for (auto keypoint : keypoints) {
+    LOG(INFO) << "Keypoint: (" << keypoint.x << "," << keypoint.y << "): " << keypoint.a11 << "," << keypoint.a12 << ","<< keypoint.a21 << ","<< keypoint.a22;
+  }
+
+  const Camera& refractive_distorted_camera = distorted_camera.IsCameraRefractive() ? BestFitNonRefracCameraRange(CameraModelId::kSimplePinhole, distorted_camera, 0.2, 0.4) : distorted_camera;
+  *undistorted_camera = UndistortCamera(options, refractive_distorted_camera);
+
+  undistorted_bitmap->Allocate(static_cast<int>(undistorted_camera->width),
+                               static_cast<int>(undistorted_camera->height),
+                               distorted_bitmap.IsRGB());
+  distorted_bitmap.CloneMetadata(undistorted_bitmap);
+
+  WarpImageBetweenCameras(distorted_camera,
+                          *undistorted_camera,
+                          distorted_bitmap,
+                          undistorted_bitmap);
 }
 
 void UndistortImage(const UndistortCameraOptions& options,

@@ -272,7 +272,8 @@ void AutomaticReconstructionController::RunDenseMapper() {
       COLMAPUndistorter undistorter(undistortion_options,
                                     *reconstruction_manager_->Get(i),
                                     *option_manager_.image_path,
-                                    dense_path);
+                                    dense_path,
+                                    *option_manager_.database_path);
       active_thread_ = &undistorter;
       undistorter.Start();
       undistorter.Wait();

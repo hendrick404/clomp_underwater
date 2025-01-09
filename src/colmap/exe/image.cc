@@ -312,6 +312,7 @@ int RunImageUndistorter(int argc, char** argv) {
   UndistortCameraOptions undistort_camera_options;
 
   OptionManager options;
+  options.AddDatabaseOptions();
   options.AddImageOptions();
   options.AddRequiredOption("input_path", &input_path);
   options.AddRequiredOption("output_path", &output_path);
@@ -376,6 +377,7 @@ int RunImageUndistorter(int argc, char** argv) {
                                             reconstruction,
                                             *options.image_path,
                                             output_path,
+                                            *options.database_path,
                                             num_patch_match_src_images,
                                             copy_type,
                                             image_ids);

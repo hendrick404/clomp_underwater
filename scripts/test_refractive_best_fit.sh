@@ -41,6 +41,7 @@ if [ $1 = "--prepare-undistortion" ] ; then
 fi
 
 colmap_underwater image_undistorter \
+    --database_path $WORKSPACE_PATH/database.db \
     --image_path $WORKSPACE_PATH/images \
     --input_path $WORKSPACE_PATH/sparse/0 \
     --output_path $WORKSPACE_PATH/dense \
