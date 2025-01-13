@@ -205,6 +205,17 @@ void UndistortImage(const UndistortCameraOptions& options,
                     const Bitmap& distorted_image,
                     const Camera& distorted_camera,
                     Bitmap* undistorted_image,
+                    Camera* undistorted_camera,
+                    const Reconstruction* reconstruction,
+                    image_t image_id);
+
+// Undistort image such that the viewing geometry of the undistorted image
+// follows a pinhole camera model. See `UndistortCamera` for more details
+// on the undistortion conventions.
+void UndistortImage(const UndistortCameraOptions& options,
+                    const Bitmap& distorted_image,
+                    const Camera& distorted_camera,
+                    Bitmap* undistorted_image,
                     Camera* undistorted_camera);
 
 // Undistort all cameras in the reconstruction and accordingly all

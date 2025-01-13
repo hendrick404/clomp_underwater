@@ -33,6 +33,8 @@
 #include "colmap/geometry/rigid3.h"
 #include "colmap/optim/ransac.h"
 #include "colmap/scene/camera.h"
+#include "colmap/scene/image.h"
+#include "colmap/scene/reconstruction.h"
 #include "colmap/scene/two_view_geometry.h"
 #include "colmap/util/logging.h"
 
@@ -185,6 +187,17 @@ bool RefineRefractiveTwoViewGeometry(
     const std::vector<Eigen::Vector2d>& inlier_points2_normalized,
     const std::vector<Rigid3d>& inlier_virtual_from_reals2,
     Rigid3d* rig2_from_rig1);
+
+// Compute a best approximated non-refractive camera model of the current
+// refractive camera.
+//
+// This approximation can only work for a certain scene
+// distance. The target scene depth is approximated from the sparse
+// reconstruction.
+Camera BestFitNonRefracCameraFromSparse(CameraModelId tgt_model_id,
+                                        const Camera& camera,
+                                        const Reconstruction& reconstruction,
+                                        image_t image_id);
 
 // Compute a best approximated non-refractive camera model of the current
 // refractive camera. This approximation can only work for a certain scene

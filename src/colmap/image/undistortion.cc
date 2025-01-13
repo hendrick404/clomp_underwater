@@ -268,7 +268,9 @@ bool COLMAPUndistorter::Undistort(const image_t image_id) const {
                  distorted_bitmap,
                  camera,
                  &undistorted_bitmap,
-                 &undistorted_camera);
+                 &undistorted_camera,
+                 &reconstruction_,
+                 image_id);
   return undistorted_bitmap.Write(output_image_path);
 }
 
@@ -390,7 +392,9 @@ bool PMVSUndistorter::Undistort(const size_t reg_image_idx) const {
                  distorted_bitmap,
                  camera,
                  &undistorted_bitmap,
-                 &undistorted_camera);
+                 &undistorted_camera,
+                 &reconstruction_,
+                 image_id);
 
   WriteProjectionMatrix(proj_matrix_path, undistorted_camera, image, "CONTOUR");
   return undistorted_bitmap.Write(output_image_path);
@@ -597,7 +601,9 @@ bool CMPMVSUndistorter::Undistort(const size_t reg_image_idx) const {
                  distorted_bitmap,
                  camera,
                  &undistorted_bitmap,
-                 &undistorted_camera);
+                 &undistorted_camera,
+                 &reconstruction_,
+                 image_id);
 
   WriteProjectionMatrix(proj_matrix_path, undistorted_camera, image, "CONTOUR");
   return undistorted_bitmap.Write(output_image_path);
@@ -945,15 +951,39 @@ Camera UndistortCamera(const UndistortCameraOptions& options,
 }
 
 void UndistortImage(const UndistortCameraOptions& options,
+                    const Bitmap& distorted_image,
+                    const Camera& distorted_camera,
+                    Bitmap* undistorted_image,
+                    Camera* undistorted_camera) {
+  UndistortImage(options, distorted_image, distorted_camera, undistorted_image, undistorted_camera, NULL, kInvalidImageId);
+}
+
+void UndistortImage(const UndistortCameraOptions& options,
                     const Bitmap& distorted_bitmap,
                     const Camera& distorted_camera,
                     Bitmap* undistorted_bitmap,
-                    Camera* undistorted_camera) {
+                    Camera* undistorted_camera,
+                    const Reconstruction* reconstruction,
+                    image_t image_id) {
   CHECK_EQ(distorted_camera.width, distorted_bitmap.Width());
   CHECK_EQ(distorted_camera.height, distorted_bitmap.Height());
 
-  const Camera& refractive_distorted_camera = distorted_camera.IsCameraRefractive() ? BestFitNonRefracCameraRange(CameraModelId::kSimplePinhole, distorted_camera, 0.2, 0.4) : distorted_camera;
-  *undistorted_camera = UndistortCamera(options, refractive_distorted_camera);
+  const Camera& non_refractive_distorted_camera = (
+    distorted_camera.IsCameraRefractive() ? (
+      reconstruction != NULL ? (
+        BestFitNonRefracCameraFromSparse(
+          CameraModelId::kOpenCV,
+          distorted_camera,
+          *reconstruction,
+          image_id
+        )
+      ) : (
+        BestFitNonRefracCameraRange(CameraModelId::kOpenCV, distorted_camera, 0.2, 0.4)
+      )
+    ) : distorted_camera
+  );
+
+  *undistorted_camera = UndistortCamera(options, non_refractive_distorted_camera);
 
   undistorted_bitmap->Allocate(static_cast<int>(undistorted_camera->width),
                                static_cast<int>(undistorted_camera->height),
